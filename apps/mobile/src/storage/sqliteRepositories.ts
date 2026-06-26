@@ -196,25 +196,21 @@ function toScanValues(scan: Scan): SQLite.SQLiteBindParams {
 }
 
 function toScan(row: ScanRow): Scan {
-  return stripUndefined({
+  return {
     id: row.id,
-    remoteId: row.remote_id ?? undefined,
     capturedAt: row.captured_at,
     imageUri: row.image_uri,
-    thumbnailUri: row.thumbnail_uri ?? undefined,
-    inventoryItemId: row.inventory_item_id ?? undefined,
     recognitionStatus: row.recognition_status,
-    recognitionConfidence: row.recognition_confidence ?? undefined,
-    ocrText: row.ocr_text ?? undefined,
-    rawRecognitionJson: row.raw_recognition_json ?? undefined,
     syncStatus: row.sync_status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  });
-}
-
-function stripUndefined<T extends Record<string, unknown>>(value: T): T {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+    ...(row.remote_id ? { remoteId: row.remote_id } : {}),
+    ...(row.thumbnail_uri ? { thumbnailUri: row.thumbnail_uri } : {}),
+    ...(row.inventory_item_id ? { inventoryItemId: row.inventory_item_id } : {}),
+    ...(row.recognition_confidence !== null ? { recognitionConfidence: row.recognition_confidence } : {}),
+    ...(row.ocr_text ? { ocrText: row.ocr_text } : {}),
+    ...(row.raw_recognition_json ? { rawRecognitionJson: row.raw_recognition_json } : {}),
+  };
 }
 
 function notImplementedRepository<T extends object>(name: string): T {
