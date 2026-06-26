@@ -1,6 +1,12 @@
 import * as SQLite from "expo-sqlite";
 import type { RecognitionStatus, Scan, SyncStatus } from "@pricernu/shared";
-import type { LocalDatabase, LocalStorageRepositories, ScanRepository } from "./storageTypes";
+import type {
+  InventoryItemRepository,
+  LocalDatabase,
+  LocalStorageRepositories,
+  PriceEstimateRepository,
+  ScanRepository,
+} from "./storageTypes";
 
 const DATABASE_NAME = "pricernu.db";
 
@@ -124,8 +130,8 @@ export function createSQLiteRepositories(): LocalStorageRepositories & { databas
   return {
     database,
     scans: new SQLiteScanRepository(database),
-    inventoryItems: notImplementedRepository("inventory items"),
-    priceEstimates: notImplementedRepository("price estimates"),
+    inventoryItems: notImplementedRepository<InventoryItemRepository>("inventory items"),
+    priceEstimates: notImplementedRepository<PriceEstimateRepository>("price estimates"),
   };
 }
 
