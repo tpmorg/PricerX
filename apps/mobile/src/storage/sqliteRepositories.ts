@@ -196,7 +196,7 @@ function toScanValues(scan: Scan): SQLite.SQLiteBindParams {
 }
 
 function toScan(row: ScanRow): Scan {
-  return {
+  return stripUndefined({
     id: row.id,
     remoteId: row.remote_id ?? undefined,
     capturedAt: row.captured_at,
@@ -210,7 +210,11 @@ function toScan(row: ScanRow): Scan {
     syncStatus: row.sync_status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  };
+  });
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
 
 function notImplementedRepository<T extends object>(name: string): T {
