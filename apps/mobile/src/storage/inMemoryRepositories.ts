@@ -37,6 +37,10 @@ export class InMemoryScanRepository implements ScanRepository {
   async update(scan: Scan): Promise<void> {
     this.scans.set(scan.id, scan);
   }
+
+  async delete(id: string): Promise<void> {
+    this.scans.delete(id);
+  }
 }
 
 export class InMemoryInventoryItemRepository implements InventoryItemRepository {
