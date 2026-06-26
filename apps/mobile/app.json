@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Pricernu",
+    "slug": "pricernu",
+    "scheme": "pricernu",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tpmorg.pricernu"
+    },
+    "android": {
+      "package": "com.tpmorg.pricernu"
+    },
+    "plugins": ["expo-router", "expo-sqlite"]
+  }
+}
