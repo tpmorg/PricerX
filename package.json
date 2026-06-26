@@ -1,0 +1,18 @@
+{
+  "name": "pricernu",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local-first object intelligence app for identifying, valuing, and cataloging real-world items.",
+  "workspaces": [
+    "apps/*",
+    "backend/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
