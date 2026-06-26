@@ -10,6 +10,7 @@ export interface ScanRepository {
   getById(id: string): Promise<Scan | null>;
   listRecent(limit: number): Promise<Scan[]>;
   update(scan: Scan): Promise<void>;
+  delete(id: string): Promise<void>;
 }
 
 export interface InventoryItemRepository {
