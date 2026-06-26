@@ -67,12 +67,7 @@ export const mockPricingProvider: PricingProvider = {
         confidence: 0.74,
         evidenceSummary: "Mock estimate for development. Replace with Brave-backed enrichment.",
         rawEvidenceJson: JSON.stringify({ requestId: context.requestId, mocked: true }),
-        lookupCacheKey: undefined,
         creditCost: 0,
-        remoteId: undefined,
-        inventoryItemId: undefined,
-        canonicalObjectId: undefined,
-        expiresAt: undefined,
       },
       evidence: [
         {
