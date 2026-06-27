@@ -18,12 +18,16 @@ export interface InventoryItemRepository {
   getById(id: string): Promise<InventoryItem | null>;
   listRecent(limit: number): Promise<InventoryItem[]>;
   update(item: InventoryItem): Promise<void>;
+  delete(id: string): Promise<void>;
 }
 
 export interface PriceEstimateRepository {
   create(estimate: PriceEstimate): Promise<void>;
+  getById(id: string): Promise<PriceEstimate | null>;
   listForInventoryItem(inventoryItemId: string): Promise<PriceEstimate[]>;
   getLatestForInventoryItem(inventoryItemId: string): Promise<PriceEstimate | null>;
+  findFreshByCacheKey(lookupCacheKey: string, nowIso: string): Promise<PriceEstimate | null>;
+  deleteForInventoryItem(inventoryItemId: string): Promise<void>;
 }
 
 export interface LocalStorageRepositories {
