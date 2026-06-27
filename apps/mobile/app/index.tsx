@@ -12,8 +12,8 @@ export default function ScanScreen() {
     setError(null);
 
     try {
-      const scan = await createMockStoredScan();
-      router.push({ pathname: "/items/[id]", params: { id: scan.id } });
+      const detail = await createMockStoredScan();
+      router.push({ pathname: "/items/[id]", params: { id: detail.scan.id } });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not create scan.");
     } finally {
@@ -28,7 +28,7 @@ export default function ScanScreen() {
           Scan, price, remember.
         </Text>
         <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
-          Pricernu starts local. This first slice stores a mocked scan in SQLite so the scan history loop works before camera, auth, or cloud enrichment arrive.
+          Pricernu starts local. This slice stores a mocked scan, item, and price estimate in SQLite before camera, auth, or cloud enrichment arrive.
         </Text>
       </View>
 
@@ -45,7 +45,7 @@ export default function ScanScreen() {
         {isCreating ? (
           <ActivityIndicator color="white" />
         ) : (
-          <Text style={{ color: "white", fontSize: 17, fontWeight: "700" }}>Create Mock Local Scan</Text>
+          <Text style={{ color: "white", fontSize: 17, fontWeight: "700" }}>Create Mock Priced Scan</Text>
         )}
       </Pressable>
 
