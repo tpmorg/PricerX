@@ -1,0 +1,141 @@
+import type { InventoryItem, ObjectIdentity, PriceEstimate, PricingResult } from "@pricernu/shared";
+import { buildCacheKey, buildObjectIdentity, buildPricingQuery, mockPricingProvider } from "@pricernu/shared";
+import { initializeLocalRepositories, localRepositories } from "@/storage/localRepositories";
+
+const PRICE_TTL_DAYS = 30;
+
+export interface LocalPricingLookupInput {
+  inventoryItem: InventoryItem;
+  identity?: ObjectIdentity;
+  query?: string;
+}
+
+export interface LocalPricingLookupResult {
+  estimate: PriceEstimate;
+  cacheHit: boolean;
+}
+
+export async function lookupPriceForInventoryItem(
+  input: LocalPricingLookupInput,
+): Promise<LocalPricingLookupResult> {
+  await initializeLocalRepositories();
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const identity = input.identity ?? buildIdentityFromInventoryItem(input.inventoryItem);
+  const query = input.query?.trim() || buildPricingQuery(identity);
+  const lookupCacheKey = buildCacheKey(identity);
+
+  const cached = await localRepositories.priceEstimates.findFreshByCacheKey(lookupCacheKey, nowIso);
+  if (cached) {
+    const estimate = cloneCachedEstimateForItem({
+      cached,
+      inventoryItemId: input.inventoryItem.id,
+      now,
+    });
+    await localRepositories.priceEstimates.create(estimate);
+    return { estimate, cacheHit: true };
+  }
+
+  const providerResult = await mockPricingProvider.lookup(
+    { identity, query, condition: input.inventoryItem.condition },
+    { requestId: createLocalId("pricing-request"), now },
+  );
+  const estimate = estimateFromProviderResult({
+    providerResult,
+    inventoryItemId: input.inventoryItem.id,
+    lookupCacheKey,
+    now,
+  });
+
+  await localRepositories.priceEstimates.create(estimate);
+  return { estimate, cacheHit: false };
+}
+
+function buildIdentityFromInventoryItem(item: InventoryItem): ObjectIdentity {
+  return buildObjectIdentity({
+    objectName: item.displayName,
+    brand: item.brand,
+    model: item.model,
+    category: item.category,
+    variant: item.variant,
+  });
+}
+
+function estimateFromProviderResult(input: {
+  providerResult: PricingResult;
+  inventoryItemId: string;
+  lookupCacheKey: string;
+  now: Date;
+}): PriceEstimate {
+  const { estimate } = input.providerResult;
+  const createdAt = input.now.toISOString();
+
+  return {
+    id: createLocalId("price"),
+    inventoryItemId: input.inventoryItemId,
+    sourceType: estimate.sourceType,
+    currency: estimate.currency,
+    creditCost: estimate.creditCost,
+    createdAt,
+    expiresAt: addDays(input.now, PRICE_TTL_DAYS).toISOString(),
+    lookupCacheKey: input.lookupCacheKey,
+    ...(estimate.lookupQuery ? { lookupQuery: estimate.lookupQuery } : {}),
+    ...(estimate.lowPrice !== undefined ? { lowPrice: estimate.lowPrice } : {}),
+    ...(estimate.highPrice !== undefined ? { highPrice: estimate.highPrice } : {}),
+    ...(estimate.medianPrice !== undefined ? { medianPrice: estimate.medianPrice } : {}),
+    ...(estimate.suggestedListPrice !== undefined ? { suggestedListPrice: estimate.suggestedListPrice } : {}),
+    ...(estimate.suggestedBuyPrice !== undefined ? { suggestedBuyPrice: estimate.suggestedBuyPrice } : {}),
+    ...(estimate.retailPrice !== undefined ? { retailPrice: estimate.retailPrice } : {}),
+    ...(estimate.confidence !== undefined ? { confidence: estimate.confidence } : {}),
+    ...(estimate.evidenceSummary ? { evidenceSummary: estimate.evidenceSummary } : {}),
+    rawEvidenceJson: JSON.stringify({
+      estimateRawEvidenceJson: estimate.rawEvidenceJson,
+      evidence: input.providerResult.evidence,
+    }),
+  };
+}
+
+function cloneCachedEstimateForItem(input: {
+  cached: PriceEstimate;
+  inventoryItemId: string;
+  now: Date;
+}): PriceEstimate {
+  return {
+    id: createLocalId("price"),
+    inventoryItemId: input.inventoryItemId,
+    sourceType: "local_cache",
+    currency: input.cached.currency,
+    creditCost: 0,
+    createdAt: input.now.toISOString(),
+    ...(input.cached.lookupQuery ? { lookupQuery: input.cached.lookupQuery } : {}),
+    ...(input.cached.lowPrice !== undefined ? { lowPrice: input.cached.lowPrice } : {}),
+    ...(input.cached.highPrice !== undefined ? { highPrice: input.cached.highPrice } : {}),
+    ...(input.cached.medianPrice !== undefined ? { medianPrice: input.cached.medianPrice } : {}),
+    ...(input.cached.suggestedListPrice !== undefined ? { suggestedListPrice: input.cached.suggestedListPrice } : {}),
+    ...(input.cached.suggestedBuyPrice !== undefined ? { suggestedBuyPrice: input.cached.suggestedBuyPrice } : {}),
+    ...(input.cached.retailPrice !== undefined ? { retailPrice: input.cached.retailPrice } : {}),
+    ...(input.cached.confidence !== undefined ? { confidence: input.cached.confidence } : {}),
+    ...(input.cached.evidenceSummary ? { evidenceSummary: input.cached.evidenceSummary } : {}),
+    ...(input.cached.lookupCacheKey ? { lookupCacheKey: input.cached.lookupCacheKey } : {}),
+    ...(input.cached.expiresAt ? { expiresAt: input.cached.expiresAt } : {}),
+    rawEvidenceJson: JSON.stringify({
+      cachedFromEstimateId: input.cached.id,
+      cachedSourceType: input.cached.sourceType,
+    }),
+  };
+}
+
+function addDays(date: Date, days: number): Date {
+  const copy = new Date(date.getTime());
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function createLocalId(prefix: string): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
