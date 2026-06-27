@@ -1,15 +1,23 @@
 import type { PriceEstimate } from "@pricernu/shared";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { deleteScan, getStoredScanDetail, type StoredScanDetail } from "@/features/scans/localScanService";
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
+import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
+import {
+  deleteScan,
+  getStoredScanDetail,
+  refreshStoredScanPricing,
+  type StoredScanDetail,
+} from "@/features/scans/localScanService";
 
 export default function ScanDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [detail, setDetail] = useState<StoredScanDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshingPrice, setIsRefreshingPrice] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pricingProvider = getPricingProviderStatus();
 
   const loadScan = useCallback(async () => {
     if (!id) return;
@@ -44,6 +52,21 @@ export default function ScanDetailScreen() {
     }
   }
 
+  async function handleRefreshPricing() {
+    if (!id) return;
+    setIsRefreshingPrice(true);
+    setError(null);
+
+    try {
+      const nextDetail = await refreshStoredScanPricing(id);
+      setDetail(nextDetail);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not refresh pricing.");
+    } finally {
+      setIsRefreshingPrice(false);
+    }
+  }
+
   const scan = detail?.scan;
   const item = detail?.inventoryItem;
   const estimate = detail?.latestPriceEstimate;
@@ -75,6 +98,27 @@ export default function ScanDetailScreen() {
             </Text>
           </View>
 
+          {scan.imageUri.startsWith("mock://") ? (
+            <View
+              style={{
+                alignItems: "center",
+                aspectRatio: 4 / 3,
+                backgroundColor: "#e5e7eb",
+                borderRadius: 8,
+                justifyContent: "center",
+              }}
+            >
+              <Text selectable style={{ color: "#4b5563", fontSize: 16, fontWeight: "600" }}>
+                Mock image placeholder
+              </Text>
+            </View>
+          ) : (
+            <Image
+              source={{ uri: scan.imageUri }}
+              style={{ aspectRatio: 4 / 3, backgroundColor: "#e5e7eb", borderRadius: 8, width: "100%" }}
+            />
+          )}
+
           <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
             <Field label="Brand" value={item?.brand ?? "Unknown"} />
             <Field label="Model" value={item?.model ?? "Unknown"} />
@@ -87,6 +131,25 @@ export default function ScanDetailScreen() {
           </View>
 
           <PriceCard estimate={estimate} />
+
+          <Pressable
+            disabled={isRefreshingPrice || !item}
+            onPress={() => void handleRefreshPricing()}
+            style={({ pressed }) => ({
+              alignItems: "center",
+              backgroundColor: isRefreshingPrice ? "#9ca3af" : pressed ? "#111827" : "#0f172a",
+              borderRadius: 8,
+              padding: 14,
+            })}
+          >
+            {isRefreshingPrice ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>
+                {pricingProvider.mode === "convex_brave" ? "Refresh Pricing with Brave" : "Re-run Local Pricing"}
+              </Text>
+            )}
+          </Pressable>
 
           <Pressable
             disabled={isDeleting}
@@ -133,6 +196,7 @@ function PriceCard({ estimate }: { estimate: PriceEstimate | null | undefined })
       <Field label="Suggested buy" value={formatMoney(estimate.suggestedBuyPrice, estimate.currency)} />
       <Field label="Source" value={estimate.sourceType} />
       <Field label="Credit cost" value={String(estimate.creditCost)} />
+      <Field label="Confidence" value={formatConfidence(estimate.confidence)} />
       <Field label="Evidence" value={estimate.evidenceSummary ?? "No evidence summary."} />
     </View>
   );
@@ -165,4 +229,9 @@ function formatMoney(value: number | undefined, currency: string): string {
     currency,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatConfidence(value: number | undefined): string {
+  if (value === undefined) return "Unknown";
+  return `${Math.round(value * 100)}%`;
 }

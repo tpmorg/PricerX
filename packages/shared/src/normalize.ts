@@ -41,12 +41,10 @@ export function buildObjectIdentity(input: {
   return {
     displayName: displayName || "Unknown object",
     normalizedName: normalizeText(displayName || baseName || "unknown object"),
-    brand,
-    normalizedBrand: brand ? normalizeText(brand) : undefined,
-    model,
-    normalizedModel: model ? normalizeModel(model) : undefined,
-    category,
-    variant,
+    ...(brand ? { brand, normalizedBrand: normalizeText(brand) } : {}),
+    ...(model ? { model, normalizedModel: normalizeModel(model) } : {}),
+    ...(category ? { category } : {}),
+    ...(variant ? { variant } : {}),
   };
 }
 

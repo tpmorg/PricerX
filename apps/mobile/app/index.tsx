@@ -1,23 +1,34 @@
 import { Link, router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { createMockStoredScan } from "@/features/scans/localScanService";
+import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
+import {
+  captureStoredScan,
+  createMockStoredScan,
+  importStoredScanFromLibrary,
+} from "@/features/scans/localScanService";
 
 export default function ScanScreen() {
-  const [isCreating, setIsCreating] = useState(false);
+  const [activeAction, setActiveAction] = useState<"camera" | "library" | "mock" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pricingProvider = getPricingProviderStatus();
 
-  async function handleCreateScan() {
-    setIsCreating(true);
+  async function runAction(action: "camera" | "library" | "mock") {
+    setActiveAction(action);
     setError(null);
 
     try {
-      const detail = await createMockStoredScan();
+      const detail =
+        action === "camera"
+          ? await captureStoredScan()
+          : action === "library"
+            ? await importStoredScanFromLibrary()
+            : await createMockStoredScan();
       router.push({ pathname: "/items/[id]", params: { id: detail.scan.id } });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not create scan.");
     } finally {
-      setIsCreating(false);
+      setActiveAction(null);
     }
   }
 
@@ -28,32 +39,47 @@ export default function ScanScreen() {
           Scan, price, remember.
         </Text>
         <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
-          Pricernu starts local. This slice stores a mocked scan, item, and price estimate in SQLite before camera, auth, or cloud enrichment arrive.
+          Pricernu starts local. Capture an item photo, store it in SQLite, and attach pricing from local cache first and Brave through Convex when configured.
         </Text>
       </View>
 
-      <Pressable
-        disabled={isCreating}
-        onPress={handleCreateScan}
-        style={({ pressed }) => ({
-          alignItems: "center",
-          backgroundColor: isCreating ? "#9ca3af" : pressed ? "#111827" : "#0f172a",
-          borderRadius: 8,
-          padding: 16,
-        })}
-      >
-        {isCreating ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={{ color: "white", fontSize: 17, fontWeight: "700" }}>Create Mock Priced Scan</Text>
-        )}
-      </Pressable>
+      <View style={{ gap: 12 }}>
+        <ActionButton
+          isActive={activeAction === "camera"}
+          label="Capture Photo"
+          onPress={() => void runAction("camera")}
+          tone="primary"
+        />
+        <ActionButton
+          isActive={activeAction === "library"}
+          label="Use Existing Photo"
+          onPress={() => void runAction("library")}
+          tone="secondary"
+        />
+        <ActionButton
+          isActive={activeAction === "mock"}
+          label="Create Mock Scan"
+          onPress={() => void runAction("mock")}
+          tone="secondary"
+        />
+      </View>
 
       {error ? (
         <Text selectable style={{ color: "#b91c1c", lineHeight: 20 }}>
           {error}
         </Text>
       ) : null}
+
+      <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 6, padding: 14 }}>
+        <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
+          Pricing path
+        </Text>
+        <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+          {pricingProvider.mode === "convex_brave"
+            ? "Fresh pricing will use Brave through Convex when local cache misses."
+            : "Fresh pricing will use the local mock provider until EXPO_PUBLIC_CONVEX_URL is configured."}
+        </Text>
+      </View>
 
       <View style={{ gap: 12 }}>
         <Link href="/history" asChild>
@@ -68,5 +94,45 @@ export default function ScanScreen() {
         </Link>
       </View>
     </ScrollView>
+  );
+}
+
+function ActionButton(input: {
+  label: string;
+  onPress: () => void;
+  isActive: boolean;
+  tone: "primary" | "secondary";
+}) {
+  const backgroundColor = input.tone === "primary" ? "#0f172a" : "#ffffff";
+  const borderColor = input.tone === "primary" ? "#0f172a" : "#d1d5db";
+  const textColor = input.tone === "primary" ? "#ffffff" : "#111827";
+
+  return (
+    <Pressable
+      disabled={input.isActive}
+      onPress={input.onPress}
+      style={({ pressed }) => ({
+        alignItems: "center",
+        backgroundColor: input.isActive
+          ? "#9ca3af"
+          : input.tone === "primary"
+            ? pressed
+              ? "#111827"
+              : backgroundColor
+            : pressed
+              ? "#e5e7eb"
+              : backgroundColor,
+        borderColor,
+        borderRadius: 8,
+        borderWidth: 1,
+        padding: 16,
+      })}
+    >
+      {input.isActive ? (
+        <ActivityIndicator color={input.tone === "primary" ? "white" : "#111827"} />
+      ) : (
+        <Text style={{ color: textColor, fontSize: 17, fontWeight: "700" }}>{input.label}</Text>
+      )}
+    </Pressable>
   );
 }

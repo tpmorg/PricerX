@@ -1,5 +1,6 @@
 import type { InventoryItem, ObjectIdentity, PriceEstimate, PricingResult } from "@pricernu/shared";
 import { buildCacheKey, buildObjectIdentity, buildPricingQuery, mockPricingProvider } from "@pricernu/shared";
+import { convexBravePricingProvider, getConvexUrl } from "@/features/pricing/convexPricingProvider";
 import { initializeLocalRepositories, localRepositories } from "@/storage/localRepositories";
 
 const PRICE_TTL_DAYS = 30;
@@ -8,11 +9,17 @@ export interface LocalPricingLookupInput {
   inventoryItem: InventoryItem;
   identity?: ObjectIdentity;
   query?: string;
+  forceRefresh?: boolean;
 }
 
 export interface LocalPricingLookupResult {
   estimate: PriceEstimate;
   cacheHit: boolean;
+}
+
+export interface PricingProviderStatus {
+  mode: "convex_brave" | "mock";
+  convexUrlConfigured: boolean;
 }
 
 export async function lookupPriceForInventoryItem(
@@ -26,18 +33,21 @@ export async function lookupPriceForInventoryItem(
   const query = input.query?.trim() || buildPricingQuery(identity);
   const lookupCacheKey = buildCacheKey(identity);
 
-  const cached = await localRepositories.priceEstimates.findFreshByCacheKey(lookupCacheKey, nowIso);
-  if (cached) {
-    const estimate = cloneCachedEstimateForItem({
-      cached,
-      inventoryItemId: input.inventoryItem.id,
-      now,
-    });
-    await localRepositories.priceEstimates.create(estimate);
-    return { estimate, cacheHit: true };
+  if (!input.forceRefresh) {
+    const cached = await localRepositories.priceEstimates.findFreshByCacheKey(lookupCacheKey, nowIso);
+    if (cached) {
+      const estimate = cloneCachedEstimateForItem({
+        cached,
+        inventoryItemId: input.inventoryItem.id,
+        now,
+      });
+      await localRepositories.priceEstimates.create(estimate);
+      return { estimate, cacheHit: true };
+    }
   }
 
-  const providerResult = await mockPricingProvider.lookup(
+  const provider = getPricingProvider();
+  const providerResult = await provider.lookup(
     { identity, query, condition: input.inventoryItem.condition },
     { requestId: createLocalId("pricing-request"), now },
   );
@@ -52,6 +62,14 @@ export async function lookupPriceForInventoryItem(
   return { estimate, cacheHit: false };
 }
 
+export function getPricingProviderStatus(): PricingProviderStatus {
+  const convexUrlConfigured = Boolean(getConvexUrl());
+  return {
+    mode: convexUrlConfigured ? "convex_brave" : "mock",
+    convexUrlConfigured,
+  };
+}
+
 function buildIdentityFromInventoryItem(item: InventoryItem): ObjectIdentity {
   return buildObjectIdentity({
     objectName: item.displayName,
@@ -60,6 +78,10 @@ function buildIdentityFromInventoryItem(item: InventoryItem): ObjectIdentity {
     category: item.category,
     variant: item.variant,
   });
+}
+
+function getPricingProvider() {
+  return getConvexUrl() ? convexBravePricingProvider : mockPricingProvider;
 }
 
 function estimateFromProviderResult(input: {

@@ -29,6 +29,7 @@ export type PriceSourceType =
   | "local_cache"
   | "convex_cache"
   | "brave_search"
+  | "mock"
   | "manual"
   | "future_provider";
 

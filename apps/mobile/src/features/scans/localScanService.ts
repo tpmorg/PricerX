@@ -1,6 +1,7 @@
 import type { InventoryItem, PriceEstimate, Scan } from "@pricernu/shared";
 import { buildObjectIdentity, mockOcrProvider, mockRecognitionProvider } from "@pricernu/shared";
 import { lookupPriceForInventoryItem } from "@/features/pricing/localPricingService";
+import { capturePhoto, pickPhotoFromLibrary } from "@/features/scans/imageCapture";
 import { initializeLocalRepositories, localRepositories } from "@/storage/localRepositories";
 
 export interface StoredScanDetail {
@@ -14,63 +15,53 @@ export async function initializeLocalStorage(): Promise<void> {
 }
 
 export async function createMockStoredScan(): Promise<StoredScanDetail> {
+  return createStoredScanFromImageUri({
+    imageUri: "mock://local-scan/ryobi-tss103.jpg",
+    requestPrefix: "mock-scan-request",
+  });
+}
+
+export async function captureStoredScan(): Promise<StoredScanDetail> {
+  const imageUri = await capturePhoto();
+  return createStoredScanFromImageUri({
+    imageUri,
+    requestPrefix: "camera-scan-request",
+  });
+}
+
+export async function importStoredScanFromLibrary(): Promise<StoredScanDetail> {
+  const imageUri = await pickPhotoFromLibrary();
+  return createStoredScanFromImageUri({
+    imageUri,
+    requestPrefix: "library-scan-request",
+  });
+}
+
+export async function refreshStoredScanPricing(id: string): Promise<StoredScanDetail | null> {
   await initializeLocalStorage();
 
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const requestId = createLocalId("mock-scan-request");
-  const imageUri = "mock://local-scan/ryobi-tss103.jpg";
+  const scan = await localRepositories.scans.getById(id);
+  if (!scan?.inventoryItemId) {
+    return scan ? { scan, inventoryItem: null, latestPriceEstimate: null } : null;
+  }
 
-  const ocr = await mockOcrProvider.extractText({ imageUri }, { requestId, now });
-  const recognition = await mockRecognitionProvider.recognize(
-    { imageUri, ocrText: ocr.fullText },
-    { requestId, now },
-  );
+  const inventoryItem = await localRepositories.inventoryItems.getById(scan.inventoryItemId);
+  if (!inventoryItem) {
+    return { scan, inventoryItem: null, latestPriceEstimate: null };
+  }
+
   const identity = buildObjectIdentity({
-    objectName: recognition.objectName,
-    brand: recognition.brand,
-    model: recognition.model,
-    category: recognition.category,
-    variant: recognition.variant,
-  });
-
-  const inventoryItem: InventoryItem = {
-    id: createLocalId("item"),
-    displayName: identity.displayName,
-    ownershipStatus: "unknown",
-    syncStatus: "local_only",
-    createdAt: nowIso,
-    updatedAt: nowIso,
-    ...(identity.brand ? { brand: identity.brand } : {}),
-    ...(identity.model ? { model: identity.model } : {}),
-    ...(identity.category ? { category: identity.category } : {}),
-    ...(identity.variant ? { variant: identity.variant } : {}),
-    ...(recognition.conditionNotes ? { condition: recognition.conditionNotes } : {}),
-  };
-
-  const scan: Scan = {
-    id: createLocalId("scan"),
-    capturedAt: nowIso,
-    imageUri,
-    inventoryItemId: inventoryItem.id,
-    recognitionStatus: "recognized",
-    recognitionConfidence: recognition.confidence,
-    ocrText: ocr.fullText,
-    rawRecognitionJson: JSON.stringify({ recognition, ocr }),
-    syncStatus: "local_only",
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  };
-
-  await localRepositories.database.transaction(async () => {
-    await localRepositories.inventoryItems.create(inventoryItem);
-    await localRepositories.scans.create(scan);
+    objectName: inventoryItem.displayName,
+    brand: inventoryItem.brand,
+    model: inventoryItem.model,
+    category: inventoryItem.category,
+    variant: inventoryItem.variant,
   });
 
   const { estimate } = await lookupPriceForInventoryItem({
     inventoryItem,
     identity,
-    query: recognition.suggestedPricingQuery,
+    forceRefresh: true,
   });
 
   return { scan, inventoryItem, latestPriceEstimate: estimate };
@@ -113,6 +104,71 @@ export async function deleteScan(id: string): Promise<void> {
     }
     await localRepositories.scans.delete(id);
   });
+}
+
+async function createStoredScanFromImageUri(input: {
+  imageUri: string;
+  requestPrefix: string;
+}): Promise<StoredScanDetail> {
+  await initializeLocalStorage();
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const requestId = createLocalId(input.requestPrefix);
+
+  const ocr = await mockOcrProvider.extractText({ imageUri: input.imageUri }, { requestId, now });
+  const recognition = await mockRecognitionProvider.recognize(
+    { imageUri: input.imageUri, ocrText: ocr.fullText },
+    { requestId, now },
+  );
+  const identity = buildObjectIdentity({
+    objectName: recognition.objectName,
+    brand: recognition.brand,
+    model: recognition.model,
+    category: recognition.category,
+    variant: recognition.variant,
+  });
+
+  const inventoryItem: InventoryItem = {
+    id: createLocalId("item"),
+    displayName: identity.displayName,
+    ownershipStatus: "unknown",
+    syncStatus: "local_only",
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    ...(identity.brand ? { brand: identity.brand } : {}),
+    ...(identity.model ? { model: identity.model } : {}),
+    ...(identity.category ? { category: identity.category } : {}),
+    ...(identity.variant ? { variant: identity.variant } : {}),
+    ...(recognition.conditionNotes ? { condition: recognition.conditionNotes } : {}),
+  };
+
+  const scan: Scan = {
+    id: createLocalId("scan"),
+    capturedAt: nowIso,
+    imageUri: input.imageUri,
+    inventoryItemId: inventoryItem.id,
+    recognitionStatus: "recognized",
+    recognitionConfidence: recognition.confidence,
+    ocrText: ocr.fullText,
+    rawRecognitionJson: JSON.stringify({ recognition, ocr }),
+    syncStatus: "local_only",
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  await localRepositories.database.transaction(async () => {
+    await localRepositories.inventoryItems.create(inventoryItem);
+    await localRepositories.scans.create(scan);
+  });
+
+  const { estimate } = await lookupPriceForInventoryItem({
+    inventoryItem,
+    identity,
+    query: recognition.suggestedPricingQuery,
+  });
+
+  return { scan, inventoryItem, latestPriceEstimate: estimate };
 }
 
 function createLocalId(prefix: string): string {

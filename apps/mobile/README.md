@@ -32,8 +32,9 @@ npm run start:dev --workspace @pricernu/mobile
 ## Environment
 
 Local Expo values live in `.env`, with committed placeholders in
-`.env.example`. EAS build profiles are mapped to EAS environments in
-`eas.json`; see `ENVIRONMENT.md` for the variable setup flow.
+`.env.example`. EAS build profiles are mapped to `development`, `preview`,
+and `production` environments in `eas.json`; the root README has the current
+EAS variable commands.
 
 ## Local Storage
 
