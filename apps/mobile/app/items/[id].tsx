@@ -1,12 +1,12 @@
-import type { Scan } from "@pricernu/shared";
+import type { PriceEstimate } from "@pricernu/shared";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { deleteScan, getScanById } from "@/features/scans/localScanService";
+import { deleteScan, getStoredScanDetail, type StoredScanDetail } from "@/features/scans/localScanService";
 
 export default function ScanDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [scan, setScan] = useState<Scan | null>(null);
+  const [detail, setDetail] = useState<StoredScanDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +16,7 @@ export default function ScanDetailScreen() {
     setError(null);
 
     try {
-      setScan(await getScanById(id));
+      setDetail(await getStoredScanDetail(id));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load scan.");
     } finally {
@@ -44,6 +44,10 @@ export default function ScanDetailScreen() {
     }
   }
 
+  const scan = detail?.scan;
+  const item = detail?.inventoryItem;
+  const estimate = detail?.latestPriceEstimate;
+
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 20, gap: 16 }}>
       {isLoading ? <ActivityIndicator /> : null}
@@ -54,7 +58,7 @@ export default function ScanDetailScreen() {
         </Text>
       ) : null}
 
-      {!isLoading && !scan ? (
+      {!isLoading && !detail ? (
         <Text selectable style={{ color: "#4b5563", fontSize: 16 }}>
           Scan not found.
         </Text>
@@ -64,20 +68,25 @@ export default function ScanDetailScreen() {
         <>
           <View style={{ gap: 6 }}>
             <Text selectable style={{ fontSize: 22, fontWeight: "700" }}>
-              {scan.ocrText ?? "Local scan"}
+              {item?.displayName ?? scan.ocrText ?? "Local scan"}
             </Text>
             <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
-              Stored locally in SQLite. Recognition and pricing will hang off this record in later slices.
+              Stored locally in SQLite with linked scan, inventory, and pricing records.
             </Text>
           </View>
 
           <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
+            <Field label="Brand" value={item?.brand ?? "Unknown"} />
+            <Field label="Model" value={item?.model ?? "Unknown"} />
+            <Field label="Category" value={item?.category ?? "Unknown"} />
             <Field label="Status" value={scan.recognitionStatus} />
             <Field label="Confidence" value={`${Math.round((scan.recognitionConfidence ?? 0) * 100)}%`} />
             <Field label="Image URI" value={scan.imageUri} />
             <Field label="Captured" value={new Date(scan.capturedAt).toLocaleString()} />
             <Field label="Sync" value={scan.syncStatus} />
           </View>
+
+          <PriceCard estimate={estimate} />
 
           <Pressable
             disabled={isDeleting}
@@ -100,6 +109,35 @@ export default function ScanDetailScreen() {
   );
 }
 
+function PriceCard({ estimate }: { estimate: PriceEstimate | null | undefined }) {
+  if (!estimate) {
+    return (
+      <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 6, padding: 14 }}>
+        <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
+          No price estimate yet
+        </Text>
+        <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+          Pricing will appear here after local cache or cloud enrichment runs.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
+      <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
+        Value Range
+      </Text>
+      <Field label="Estimate" value={formatRange(estimate)} />
+      <Field label="Suggested list" value={formatMoney(estimate.suggestedListPrice, estimate.currency)} />
+      <Field label="Suggested buy" value={formatMoney(estimate.suggestedBuyPrice, estimate.currency)} />
+      <Field label="Source" value={estimate.sourceType} />
+      <Field label="Credit cost" value={String(estimate.creditCost)} />
+      <Field label="Evidence" value={estimate.evidenceSummary ?? "No evidence summary."} />
+    </View>
+  );
+}
+
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ gap: 2 }}>
@@ -111,4 +149,20 @@ function Field({ label, value }: { label: string; value: string }) {
       </Text>
     </View>
   );
+}
+
+function formatRange(estimate: PriceEstimate): string {
+  const low = formatMoney(estimate.lowPrice, estimate.currency);
+  const high = formatMoney(estimate.highPrice, estimate.currency);
+  if (low === "Unknown" && high === "Unknown") return "Unknown";
+  return `${low} - ${high}`;
+}
+
+function formatMoney(value: number | undefined, currency: string): string {
+  if (value === undefined) return "Unknown";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
