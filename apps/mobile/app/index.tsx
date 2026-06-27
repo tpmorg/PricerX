@@ -2,28 +2,24 @@ import { Link, router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
-import {
-  captureStoredScan,
-  createMockStoredScan,
-  importStoredScanFromLibrary,
-} from "@/features/scans/localScanService";
+import { createMockStoredScan, importStoredScanFromLibrary } from "@/features/scans/localScanService";
 
 export default function ScanScreen() {
-  const [activeAction, setActiveAction] = useState<"camera" | "library" | "mock" | null>(null);
+  const [activeAction, setActiveAction] = useState<"library" | "mock" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pricingProvider = getPricingProviderStatus();
 
-  async function runAction(action: "camera" | "library" | "mock") {
+  function handleOpenCamera() {
+    setError(null);
+    router.push("/camera");
+  }
+
+  async function runAction(action: "library" | "mock") {
     setActiveAction(action);
     setError(null);
 
     try {
-      const detail =
-        action === "camera"
-          ? await captureStoredScan()
-          : action === "library"
-            ? await importStoredScanFromLibrary()
-            : await createMockStoredScan();
+      const detail = action === "library" ? await importStoredScanFromLibrary() : await createMockStoredScan();
       router.push({ pathname: "/items/[id]", params: { id: detail.scan.id } });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not create scan.");
@@ -44,12 +40,7 @@ export default function ScanScreen() {
       </View>
 
       <View style={{ gap: 12 }}>
-        <ActionButton
-          isActive={activeAction === "camera"}
-          label="Capture Photo"
-          onPress={() => void runAction("camera")}
-          tone="primary"
-        />
+        <ActionButton isActive={false} label="Open Camera" onPress={handleOpenCamera} tone="primary" />
         <ActionButton
           isActive={activeAction === "library"}
           label="Use Existing Photo"

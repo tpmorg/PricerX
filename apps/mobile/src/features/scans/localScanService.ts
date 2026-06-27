@@ -1,7 +1,7 @@
 import type { InventoryItem, PriceEstimate, Scan } from "@pricernu/shared";
 import { buildObjectIdentity, mockOcrProvider, mockRecognitionProvider } from "@pricernu/shared";
 import { lookupPriceForInventoryItem } from "@/features/pricing/localPricingService";
-import { capturePhoto, pickPhotoFromLibrary } from "@/features/scans/imageCapture";
+import { pickPhotoFromLibrary } from "@/features/scans/imageCapture";
 import { initializeLocalRepositories, localRepositories } from "@/storage/localRepositories";
 
 export interface StoredScanDetail {
@@ -21,20 +21,9 @@ export async function createMockStoredScan(): Promise<StoredScanDetail> {
   });
 }
 
-export async function captureStoredScan(): Promise<StoredScanDetail> {
-  const imageUri = await capturePhoto();
-  return createStoredScanFromImageUri({
-    imageUri,
-    requestPrefix: "camera-scan-request",
-  });
-}
-
 export async function importStoredScanFromLibrary(): Promise<StoredScanDetail> {
   const imageUri = await pickPhotoFromLibrary();
-  return createStoredScanFromImageUri({
-    imageUri,
-    requestPrefix: "library-scan-request",
-  });
+  return createStoredScanFromImage(imageUri, "library-scan-request");
 }
 
 export async function refreshStoredScanPricing(id: string): Promise<StoredScanDetail | null> {
@@ -169,6 +158,13 @@ async function createStoredScanFromImageUri(input: {
   });
 
   return { scan, inventoryItem, latestPriceEstimate: estimate };
+}
+
+export async function createStoredScanFromImage(
+  imageUri: string,
+  requestPrefix = "captured-scan-request",
+): Promise<StoredScanDetail> {
+  return createStoredScanFromImageUri({ imageUri, requestPrefix });
 }
 
 function createLocalId(prefix: string): string {

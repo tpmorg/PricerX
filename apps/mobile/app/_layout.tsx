@@ -6,6 +6,7 @@ export default function RootLayout() {
     <>
       <Stack>
         <Stack.Screen name="index" options={{ title: "Pricernu" }} />
+        <Stack.Screen name="camera" options={{ headerShown: false, presentation: "fullScreenModal" }} />
         <Stack.Screen name="history" options={{ title: "Scan History" }} />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="items/[id]" options={{ title: "Scan Detail" }} />
