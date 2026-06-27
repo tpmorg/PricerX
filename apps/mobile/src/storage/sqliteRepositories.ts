@@ -92,11 +92,16 @@ export class SQLiteLocalDatabase implements LocalDatabase {
 
   async transaction<T>(operation: () => Promise<T>): Promise<T> {
     const db = await this.getDatabase();
-    if ("withTransactionAsync" in db) {
-      return db.withTransactionAsync(operation);
-    }
+    await db.execAsync("BEGIN TRANSACTION;");
 
-    return operation();
+    try {
+      const result = await operation();
+      await db.execAsync("COMMIT;");
+      return result;
+    } catch (error) {
+      await db.execAsync("ROLLBACK;");
+      throw error;
+    }
   }
 
   getDatabase(): Promise<SQLite.SQLiteDatabase> {
