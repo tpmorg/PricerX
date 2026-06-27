@@ -1,6 +1,7 @@
 import type { InventoryItem, PriceEstimate, Scan } from "@pricernu/shared";
-import { buildObjectIdentity, mockOcrProvider, mockRecognitionProvider } from "@pricernu/shared";
+import { buildObjectIdentity, mockOcrProvider, mockRecognitionProvider, type OcrResult } from "@pricernu/shared";
 import { lookupPriceForInventoryItem } from "@/features/pricing/localPricingService";
+import { geminiNanoRecognitionProvider } from "@/features/recognition/geminiNanoRecognitionProvider";
 import { pickPhotoFromLibrary } from "@/features/scans/imageCapture";
 import { initializeLocalRepositories, localRepositories } from "@/storage/localRepositories";
 
@@ -19,6 +20,7 @@ export async function createMockStoredScan(): Promise<StoredScanDetail> {
     imageUri: "mock://local-scan/ryobi-tss103.jpg",
     requestPrefix: "mock-scan-request",
     allowMockPricing: true,
+    useMockRecognition: true,
   });
 }
 
@@ -100,6 +102,7 @@ async function createStoredScanFromImageUri(input: {
   imageUri: string;
   requestPrefix: string;
   allowMockPricing?: boolean;
+  useMockRecognition?: boolean;
 }): Promise<StoredScanDetail> {
   await initializeLocalStorage();
 
@@ -107,8 +110,9 @@ async function createStoredScanFromImageUri(input: {
   const nowIso = now.toISOString();
   const requestId = createLocalId(input.requestPrefix);
 
-  const ocr = await mockOcrProvider.extractText({ imageUri: input.imageUri }, { requestId, now });
-  const recognition = await mockRecognitionProvider.recognize(
+  const ocr = await getOcrResult(input.imageUri, requestId, now, input.useMockRecognition === true);
+  const recognitionProvider = input.useMockRecognition ? mockRecognitionProvider : geminiNanoRecognitionProvider;
+  const recognition = await recognitionProvider.recognize(
     { imageUri: input.imageUri, ocrText: ocr.fullText },
     { requestId, now },
   );
@@ -168,6 +172,24 @@ export async function createStoredScanFromImage(
   requestPrefix = "captured-scan-request",
 ): Promise<StoredScanDetail> {
   return createStoredScanFromImageUri({ imageUri, requestPrefix });
+}
+
+async function getOcrResult(
+  imageUri: string,
+  requestId: string,
+  now: Date,
+  useMockRecognition: boolean,
+): Promise<OcrResult> {
+  if (useMockRecognition) {
+    return mockOcrProvider.extractText({ imageUri }, { requestId, now });
+  }
+
+  return {
+    provider: "none",
+    modelCandidates: [],
+    serialCandidates: [],
+    brandCandidates: [],
+  };
 }
 
 function createLocalId(prefix: string): string {

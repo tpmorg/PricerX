@@ -35,7 +35,7 @@ export default function ScanScreen() {
           Scan, price, remember.
         </Text>
         <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
-          Capture an item photo, store it locally, and price real scans with Brave through Convex.
+          Capture an item photo, identify it with local Gemini Nano, then price real scans with Brave through Convex.
         </Text>
       </View>
 
@@ -67,8 +67,8 @@ export default function ScanScreen() {
         </Text>
         <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
           {pricingProvider.mode === "convex_brave"
-            ? "Fresh pricing will use Brave through Convex when local cache misses."
-            : "Real scan pricing needs EXPO_PUBLIC_CONVEX_URL. Only Create Mock Scan uses local mock pricing."}
+            ? "Real scans use Gemini Nano on-device recognition, then Brave through Convex when local cache misses."
+            : "Real scan pricing needs EXPO_PUBLIC_CONVEX_URL. Only Create Mock Scan uses local mock recognition and pricing."}
         </Text>
       </View>
 
