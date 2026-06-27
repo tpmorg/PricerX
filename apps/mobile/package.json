@@ -5,24 +5,30 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:dev": "expo start --dev-client",
+    "android:dev": "expo start --dev-client --android",
+    "ios:dev": "expo start --dev-client --ios",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@pricernu/shared": "workspace:*",
-    "expo": "^56.0.12",
-    "expo-router": "^56.2.11",
-    "expo-sqlite": "^56.0.5",
-    "expo-status-bar": "^56.0.4",
-    "react": "^19.2.7",
-    "react-native": "^0.86.0",
-    "react-native-safe-area-context": "^5.8.0",
-    "react-native-screens": "^4.25.2"
+    "@pricernu/shared": "0.0.0",
+    "expo": "~56.0.0",
+    "expo-constants": "~56.0.18",
+    "expo-dev-client": "~56.0.20",
+    "expo-linking": "~56.0.14",
+    "expo-router": "~56.2.11",
+    "expo-sqlite": "~56.0.5",
+    "expo-status-bar": "~56.0.4",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2"
   },
   "devDependencies": {
-    "@types/react": "^19.2.17",
-    "typescript": "^5.9.0"
+    "@types/react": "~19.2.14",
+    "typescript": "~6.0.3"
   }
 }

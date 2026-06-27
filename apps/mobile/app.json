@@ -6,7 +6,6 @@
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tpmorg.pricernu"
@@ -14,6 +13,16 @@
     "android": {
       "package": "com.tpmorg.pricernu"
     },
-    "plugins": ["expo-router", "expo-sqlite"]
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-status-bar"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c0d21bdf-7948-44d0-ae8e-994de32b5895"
+      }
+    }
   }
 }
