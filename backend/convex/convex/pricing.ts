@@ -97,17 +97,12 @@ export const lookupPricing = action({
     }
 
     const range = summarizePrices(prices);
-    const confidence = estimateConfidence({ prices, sources, query });
+    const confidence = estimateConfidence({ prices, sources });
 
     return {
       ok: true,
       result: {
         currency: DEFAULT_CURRENCY,
-        lowPrice: range.lowPrice,
-        highPrice: range.highPrice,
-        medianPrice: range.medianPrice,
-        suggestedListPrice: range.highPrice,
-        suggestedBuyPrice: range.lowPrice,
         confidence,
         sourceType: "brave_search",
         evidenceSummary: buildEvidenceSummary({ prices, sources }),
@@ -115,6 +110,9 @@ export const lookupPricing = action({
         lookupCacheKey,
         creditCost: 1,
         createdAt,
+        ...(range.lowPrice !== undefined ? { lowPrice: range.lowPrice, suggestedBuyPrice: range.lowPrice } : {}),
+        ...(range.highPrice !== undefined ? { highPrice: range.highPrice, suggestedListPrice: range.highPrice } : {}),
+        ...(range.medianPrice !== undefined ? { medianPrice: range.medianPrice } : {}),
       },
     };
   },
@@ -217,7 +215,7 @@ function summarizePrices(prices: number[]): {
   };
 }
 
-function estimateConfidence(input: { prices: number[]; sources: EvidenceItem[]; query: string }): number {
+function estimateConfidence(input: { prices: number[]; sources: EvidenceItem[] }): number {
   if (input.prices.length >= 4) return 0.72;
   if (input.prices.length >= 2) return 0.58;
   if (input.prices.length === 1) return 0.42;
