@@ -11,6 +11,14 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "env:create": "npx eas env:create",
+    "env:list": "npx eas env:list",
+    "env:list:development": "npx eas env:list --environment development",
+    "env:list:preview": "npx eas env:list --environment preview",
+    "env:list:production": "npx eas env:list --environment production",
+    "env:pull:development": "npx eas env:pull --environment development",
+    "env:pull:preview": "npx eas env:pull --environment preview",
+    "env:pull:production": "npx eas env:pull --environment production",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

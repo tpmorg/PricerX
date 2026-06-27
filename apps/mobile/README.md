@@ -29,6 +29,12 @@ For the dev-client build lane:
 npm run start:dev --workspace @pricernu/mobile
 ```
 
+## Environment
+
+Local Expo values live in `.env`, with committed placeholders in
+`.env.example`. EAS build profiles are mapped to EAS environments in
+`eas.json`; see `ENVIRONMENT.md` for the variable setup flow.
+
 ## Local Storage
 
 SQLite is initialized on first app use through `src/storage/sqliteRepositories.ts`.

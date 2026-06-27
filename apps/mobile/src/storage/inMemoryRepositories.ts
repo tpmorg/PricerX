@@ -63,6 +63,10 @@ export class InMemoryInventoryItemRepository implements InventoryItemRepository 
   async update(item: InventoryItem): Promise<void> {
     this.items.set(item.id, item);
   }
+
+  async delete(id: string): Promise<void> {
+    this.items.delete(id);
+  }
 }
 
 export class InMemoryPriceEstimateRepository implements PriceEstimateRepository {
@@ -70,6 +74,10 @@ export class InMemoryPriceEstimateRepository implements PriceEstimateRepository 
 
   async create(estimate: PriceEstimate): Promise<void> {
     this.estimates.set(estimate.id, estimate);
+  }
+
+  async getById(id: string): Promise<PriceEstimate | null> {
+    return this.estimates.get(id) ?? null;
   }
 
   async listForInventoryItem(inventoryItemId: string): Promise<PriceEstimate[]> {
@@ -80,6 +88,24 @@ export class InMemoryPriceEstimateRepository implements PriceEstimateRepository 
 
   async getLatestForInventoryItem(inventoryItemId: string): Promise<PriceEstimate | null> {
     return (await this.listForInventoryItem(inventoryItemId))[0] ?? null;
+  }
+
+  async findFreshByCacheKey(lookupCacheKey: string, nowIso: string): Promise<PriceEstimate | null> {
+    return [...this.estimates.values()]
+      .filter(
+        (estimate) =>
+          estimate.lookupCacheKey === lookupCacheKey &&
+          (!estimate.expiresAt || estimate.expiresAt > nowIso),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+  }
+
+  async deleteForInventoryItem(inventoryItemId: string): Promise<void> {
+    for (const estimate of this.estimates.values()) {
+      if (estimate.inventoryItemId === inventoryItemId) {
+        this.estimates.delete(estimate.id);
+      }
+    }
   }
 }
 
