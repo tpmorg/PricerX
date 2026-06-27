@@ -12,6 +12,7 @@ interface ConvexPricingSuccess {
     sourceType: "brave_search";
     evidenceSummary: string;
     sources: PricingEvidenceItem[];
+    searchQueries: string[];
     lookupCacheKey: string;
     creditCost: number;
     createdAt: string;
@@ -66,6 +67,7 @@ export const convexBravePricingProvider: PricingProvider = {
         rawEvidenceJson: JSON.stringify({
           lookupCacheKey: result.lookupCacheKey,
           createdAt: result.createdAt,
+          searchQueries: result.searchQueries,
           sources: result.sources,
         }),
         ...(result.lowPrice !== undefined ? { lowPrice: result.lowPrice } : {}),

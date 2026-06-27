@@ -135,8 +135,13 @@ export interface PricingEvidenceItem {
   domain?: string;
   snippet?: string;
   detectedPrice?: number;
+  priceText?: string;
   currency?: string;
   sourceType?: string;
   relevanceScore?: number;
   exactModelMatch?: boolean;
+  marketplaceType?: string;
+  query?: string;
+  rank?: number;
+  reasons?: string[];
 }

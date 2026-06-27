@@ -1,7 +1,7 @@
 import type { PriceEstimate } from "@pricernu/shared";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
 import {
   deleteScan,
@@ -89,12 +89,12 @@ export default function ScanDetailScreen() {
 
       {scan ? (
         <>
-          <View style={{ gap: 6 }}>
-            <Text selectable style={{ fontSize: 22, fontWeight: "700" }}>
+          <View style={{ gap: 8 }}>
+            <Text selectable style={{ fontSize: 28, fontWeight: "800" }}>
               {item?.displayName ?? scan.ocrText ?? "Local scan"}
             </Text>
-            <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
-              Stored locally in SQLite with linked scan, inventory, and pricing records.
+            <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
+              {estimate ? `${formatRange(estimate)} from ${estimate.sourceType}` : "Ready for pricing evidence."}
             </Text>
           </View>
 
@@ -119,18 +119,18 @@ export default function ScanDetailScreen() {
             />
           )}
 
-          <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
+          <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
             <Field label="Brand" value={item?.brand ?? "Unknown"} />
             <Field label="Model" value={item?.model ?? "Unknown"} />
             <Field label="Category" value={item?.category ?? "Unknown"} />
+            <Field label="Condition" value={item?.condition ?? "Unknown"} />
             <Field label="Status" value={scan.recognitionStatus} />
             <Field label="Confidence" value={`${Math.round((scan.recognitionConfidence ?? 0) * 100)}%`} />
-            <Field label="Image URI" value={scan.imageUri} />
             <Field label="Captured" value={new Date(scan.capturedAt).toLocaleString()} />
-            <Field label="Sync" value={scan.syncStatus} />
           </View>
 
           <PriceCard estimate={estimate} />
+          <EvidenceSection estimate={estimate} />
 
           <Pressable
             disabled={isRefreshingPrice || !item}
@@ -187,18 +187,121 @@ function PriceCard({ estimate }: { estimate: PriceEstimate | null | undefined })
   }
 
   return (
-    <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
-      <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
-        Value Range
+    <View style={{ backgroundColor: "#111827", borderRadius: 8, gap: 12, padding: 16 }}>
+      <Text selectable style={{ color: "white", fontSize: 18, fontWeight: "800" }}>
+        Pricing Signal
       </Text>
-      <Field label="Estimate" value={formatRange(estimate)} />
-      <Field label="Suggested list" value={formatMoney(estimate.suggestedListPrice, estimate.currency)} />
-      <Field label="Suggested buy" value={formatMoney(estimate.suggestedBuyPrice, estimate.currency)} />
-      <Field label="Source" value={estimate.sourceType} />
-      <Field label="Credit cost" value={String(estimate.creditCost)} />
-      <Field label="Confidence" value={formatConfidence(estimate.confidence)} />
-      <Field label="Evidence" value={estimate.evidenceSummary ?? "No evidence summary."} />
+      <Text selectable style={{ color: "white", fontSize: 34, fontWeight: "900" }}>
+        {formatRange(estimate)}
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        <Pill label={`List ${formatMoney(estimate.suggestedListPrice, estimate.currency)}`} />
+        <Pill label={`Buy ${formatMoney(estimate.suggestedBuyPrice, estimate.currency)}`} />
+        <Pill label={formatConfidence(estimate.confidence)} />
+      </View>
+      <Text selectable style={{ color: "#d1d5db", lineHeight: 20 }}>
+        {estimate.evidenceSummary ?? "No evidence summary."}
+      </Text>
+      {estimate.lookupQuery ? (
+        <Text selectable style={{ color: "#9ca3af", lineHeight: 20 }}>
+          Query: {estimate.lookupQuery}
+        </Text>
+      ) : null}
     </View>
+  );
+}
+
+function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefined }) {
+  const evidence = parsePricingEvidence(estimate);
+
+  if (!estimate || evidence.sources.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={{ gap: 4 }}>
+        <Text selectable style={{ color: "#111827", fontSize: 20, fontWeight: "800" }}>
+          Comparable Listings
+        </Text>
+        {evidence.searchQueries.length > 0 ? (
+          <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+            {evidence.searchQueries.length} buyer-intent search queries checked.
+          </Text>
+        ) : null}
+      </View>
+
+      {evidence.searchQueries.length > 0 ? (
+        <View style={{ gap: 6 }}>
+          {evidence.searchQueries.map((query) => (
+            <Text key={query} selectable style={{ color: "#4b5563", fontSize: 13, lineHeight: 18 }}>
+              {query}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={{ gap: 10 }}>
+        {evidence.sources.map((source, index) => (
+          <EvidenceCard key={`${source.url ?? source.title}-${index}`} source={source} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
+  const price = source.detectedPrice !== undefined ? formatMoney(source.detectedPrice, source.currency ?? "USD") : "No price";
+  const reasons = source.reasons?.length ? source.reasons.join(" / ") : source.marketplaceType ?? "web result";
+
+  async function openSource() {
+    if (!source.url) return;
+    await Linking.openURL(source.url);
+  }
+
+  return (
+    <Pressable
+      disabled={!source.url}
+      onPress={() => void openSource()}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? "#f3f4f6" : "#ffffff",
+        borderColor: "#d1d5db",
+        borderRadius: 8,
+        borderWidth: 1,
+        gap: 8,
+        padding: 14,
+      })}
+    >
+      <View style={{ alignItems: "flex-start", flexDirection: "row", gap: 12, justifyContent: "space-between" }}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text selectable style={{ color: "#6b7280", fontSize: 12, fontWeight: "800", textTransform: "uppercase" }}>
+            {source.domain ?? "Unknown source"}
+          </Text>
+          <Text selectable style={{ color: "#111827", fontSize: 16, fontWeight: "800", lineHeight: 21 }}>
+            {source.title}
+          </Text>
+        </View>
+        <Text selectable style={{ color: "#111827", fontSize: 18, fontWeight: "900" }}>
+          {price}
+        </Text>
+      </View>
+
+      {source.snippet ? (
+        <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+          {source.snippet}
+        </Text>
+      ) : null}
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+        <SmallPill label={source.marketplaceType ?? "web"} />
+        <SmallPill label={`Score ${Math.round((source.relevanceScore ?? 0) * 100)}%`} />
+        {source.exactModelMatch ? <SmallPill label="Model match" /> : null}
+      </View>
+
+      <Text selectable style={{ color: "#6b7280", fontSize: 12, lineHeight: 17 }}>
+        {reasons}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -211,6 +314,22 @@ function Field({ label, value }: { label: string; value: string }) {
       <Text selectable style={{ color: "#111827", lineHeight: 20 }}>
         {value}
       </Text>
+    </View>
+  );
+}
+
+function Pill({ label }: { label: string }) {
+  return (
+    <View style={{ backgroundColor: "#374151", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
+      <Text style={{ color: "white", fontSize: 13, fontWeight: "800" }}>{label}</Text>
+    </View>
+  );
+}
+
+function SmallPill({ label }: { label: string }) {
+  return (
+    <View style={{ backgroundColor: "#eef2ff", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 }}>
+      <Text style={{ color: "#3730a3", fontSize: 12, fontWeight: "800" }}>{label}</Text>
     </View>
   );
 }
@@ -234,4 +353,52 @@ function formatMoney(value: number | undefined, currency: string): string {
 function formatConfidence(value: number | undefined): string {
   if (value === undefined) return "Unknown";
   return `${Math.round(value * 100)}%`;
+}
+
+interface DetailEvidenceItem {
+  title: string;
+  url?: string;
+  domain?: string;
+  snippet?: string;
+  detectedPrice?: number;
+  currency?: string;
+  relevanceScore?: number;
+  exactModelMatch?: boolean;
+  marketplaceType?: string;
+  query?: string;
+  rank?: number;
+  reasons?: string[];
+}
+
+interface DetailEvidencePayload {
+  searchQueries: string[];
+  sources: DetailEvidenceItem[];
+}
+
+function parsePricingEvidence(estimate: PriceEstimate | null | undefined): DetailEvidencePayload {
+  if (!estimate?.rawEvidenceJson) {
+    return { searchQueries: [], sources: [] };
+  }
+
+  try {
+    const parsed = JSON.parse(estimate.rawEvidenceJson) as {
+      estimateRawEvidenceJson?: string;
+      evidence?: DetailEvidenceItem[];
+      searchQueries?: string[];
+      sources?: DetailEvidenceItem[];
+    };
+    const providerPayload = parsed.estimateRawEvidenceJson
+      ? JSON.parse(parsed.estimateRawEvidenceJson) as {
+          searchQueries?: string[];
+          sources?: DetailEvidenceItem[];
+        }
+      : parsed;
+
+    return {
+      searchQueries: providerPayload.searchQueries ?? parsed.searchQueries ?? [],
+      sources: providerPayload.sources ?? parsed.sources ?? parsed.evidence ?? [],
+    };
+  } catch {
+    return { searchQueries: [], sources: [] };
+  }
 }
