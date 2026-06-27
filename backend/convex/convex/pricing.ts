@@ -3,6 +3,29 @@ import { action } from "./_generated/server";
 
 const BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search";
 const DEFAULT_CURRENCY = "USD";
+const SEARCH_RESULT_COUNT = "8";
+const MAX_QUERIES = 4;
+const MAX_EVIDENCE_ITEMS = 12;
+const RESALE_DOMAINS = [
+  "ebay.com",
+  "mercari.com",
+  "offerup.com",
+  "craigslist.org",
+  "facebook.com",
+  "reverb.com",
+  "swappa.com",
+  "poshmark.com",
+];
+const RETAIL_DOMAINS = [
+  "amazon.com",
+  "walmart.com",
+  "bestbuy.com",
+  "homedepot.com",
+  "lowes.com",
+  "target.com",
+  "costco.com",
+  "bhphotovideo.com",
+];
 
 export const lookupPricing = action({
   args: {
@@ -47,43 +70,62 @@ export const lookupPricing = action({
       };
     }
 
-    const query = buildSearchQuery(args.query, args.condition);
-    let response: Response;
+    const queries = buildSearchQueries(args.identity, args.query, args.condition);
+    const searchResults: SearchResult[] = [];
 
-    try {
-      response = await fetch(`${BRAVE_SEARCH_URL}?${new URLSearchParams({ q: query, count: "10" })}`, {
-        headers: {
-          Accept: "application/json",
-          "X-Subscription-Token": apiKey,
-        },
-      });
-    } catch (error) {
-      return {
-        ok: false,
-        reason: "network_error",
-        message: error instanceof Error ? error.message : "Brave Search request failed.",
-        lookupCacheKey,
-        creditCost: 0,
-        createdAt,
-      };
+    for (const query of queries) {
+      let response: Response;
+
+      try {
+        response = await fetch(
+          `${BRAVE_SEARCH_URL}?${new URLSearchParams({ q: query, count: SEARCH_RESULT_COUNT })}`,
+          {
+            headers: {
+              Accept: "application/json",
+              "X-Subscription-Token": apiKey,
+            },
+          },
+        );
+      } catch (error) {
+        return {
+          ok: false,
+          reason: "network_error",
+          message: error instanceof Error ? error.message : "Brave Search request failed.",
+          lookupCacheKey,
+          creditCost: 0,
+          createdAt,
+        };
+      }
+
+      if (!response.ok) {
+        return {
+          ok: false,
+          reason: "provider_error",
+          message: `Brave Search returned HTTP ${response.status}.`,
+          lookupCacheKey,
+          creditCost: 0,
+          createdAt,
+        };
+      }
+
+      const payload = (await response.json()) as BraveSearchResponse;
+      const results = (payload.web?.results ?? []).map((result, index) => ({
+        result,
+        query,
+        rank: index + 1,
+      }));
+      searchResults.push(...results);
     }
 
-    if (!response.ok) {
-      return {
-        ok: false,
-        reason: "provider_error",
-        message: `Brave Search returned HTTP ${response.status}.`,
-        lookupCacheKey,
-        creditCost: 0,
-        createdAt,
-      };
-    }
-
-    const payload = (await response.json()) as BraveSearchResponse;
-    const sources = (payload.web?.results ?? []).map(toEvidenceItem).slice(0, 10);
-    const prices = sources
+    const sources = dedupeEvidence(
+      searchResults.map(({ result, query, rank }) => toEvidenceItem(result, args.identity, query, rank)),
+    )
+      .sort((left, right) => right.relevanceScore - left.relevanceScore)
+      .slice(0, MAX_EVIDENCE_ITEMS);
+    const priceCandidates = sources
       .map((source) => source.detectedPrice)
       .filter((price): price is number => typeof price === "number" && Number.isFinite(price));
+    const prices = trimPriceOutliers(priceCandidates);
 
     if (sources.length === 0) {
       return {
@@ -107,6 +149,7 @@ export const lookupPricing = action({
         sourceType: "brave_search",
         evidenceSummary: buildEvidenceSummary({ prices, sources }),
         sources,
+        searchQueries: queries,
         lookupCacheKey,
         creditCost: 1,
         createdAt,
@@ -150,14 +193,38 @@ interface EvidenceItem {
   domain?: string;
   snippet?: string;
   detectedPrice?: number;
+  priceText?: string;
   currency?: string;
   sourceType: string;
   relevanceScore: number;
   exactModelMatch: boolean;
+  marketplaceType: string;
+  query: string;
+  rank: number;
+  reasons: string[];
 }
 
-function buildSearchQuery(query: string, condition: string | undefined): string {
-  return [query.trim(), condition?.trim(), "used price"].filter(Boolean).join(" ");
+interface SearchResult {
+  result: BraveSearchResult;
+  query: string;
+  rank: number;
+}
+
+function buildSearchQueries(identity: PricingIdentity, suggestedQuery: string, condition: string | undefined): string[] {
+  const exactName = [identity.brand, identity.model, identity.category ?? identity.displayName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const quotedModel = [identity.brand, identity.model].filter(Boolean).join(" ").trim();
+  const normalizedCondition = condition?.toLowerCase().includes("new") ? "new" : "used";
+  const queries = [
+    suggestedQuery,
+    [quotedModel ? `"${quotedModel}"` : exactName, normalizedCondition, "price"].filter(Boolean).join(" "),
+    [exactName || identity.displayName, "sold used price ebay mercari offerup"].filter(Boolean).join(" "),
+    [exactName || identity.displayName, "retail price amazon walmart best buy home depot lowes"].filter(Boolean).join(" "),
+  ];
+
+  return [...new Set(queries.map((query) => query.replace(/\s+/g, " ").trim()).filter(Boolean))].slice(0, MAX_QUERIES);
 }
 
 function buildCacheKey(identity: PricingIdentity): string {
@@ -169,31 +236,139 @@ function buildCacheKey(identity: PricingIdentity): string {
   ].join("|");
 }
 
-function toEvidenceItem(result: BraveSearchResult): EvidenceItem {
+function toEvidenceItem(
+  result: BraveSearchResult,
+  identity: PricingIdentity,
+  query: string,
+  rank: number,
+): EvidenceItem {
   const title = stripHtml(result.title ?? "Untitled result");
   const snippet = stripHtml(result.description ?? "");
-  const detectedPrice = detectPrice(`${title} ${snippet}`);
+  const detected = detectBestPrice(`${title} ${snippet}`);
   const domain = getDomain(result.url);
+  const marketplaceType = classifyDomain(domain);
+  const exactModelMatch = matchesModel(`${title} ${snippet}`, identity);
+  const scored = scoreResult({
+    title,
+    snippet,
+    domain,
+    marketplaceType,
+    exactModelMatch,
+    detectedPrice: detected?.value,
+    rank,
+  });
 
   return {
     title,
     sourceType: "web",
-    relevanceScore: detectedPrice === undefined ? 0.35 : 0.65,
-    exactModelMatch: false,
+    relevanceScore: scored.score,
+    exactModelMatch,
+    marketplaceType,
+    query,
+    rank,
+    reasons: scored.reasons,
     ...(result.url ? { url: result.url } : {}),
     ...(domain ? { domain } : {}),
     ...(snippet ? { snippet } : {}),
-    ...(detectedPrice !== undefined ? { detectedPrice, currency: DEFAULT_CURRENCY } : {}),
+    ...(detected ? { detectedPrice: detected.value, priceText: detected.text, currency: DEFAULT_CURRENCY } : {}),
   };
 }
 
-function detectPrice(text: string): number | undefined {
-  const match = text.match(/\$\s?([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/);
-  if (!match?.[1]) return undefined;
+function detectBestPrice(text: string): { value: number; text: string } | undefined {
+  const matches = [...text.matchAll(/\$\s?([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/g)];
+  const prices = matches
+    .map((match) => {
+      const rawValue = match[1];
+      if (!rawValue) return null;
+      const value = Number(rawValue.replace(/,/g, ""));
+      if (!Number.isFinite(value) || value <= 0 || value > 25000) return null;
+      return { value, text: match[0].replace(/\s+/g, " ") };
+    })
+    .filter((price): price is { value: number; text: string } => price !== null)
+    .sort((left, right) => left.value - right.value);
 
-  const parsed = Number(match[1].replace(/,/g, ""));
-  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
-  return parsed;
+  if (prices.length === 0) return undefined;
+  return prices[Math.floor(prices.length / 2)];
+}
+
+function classifyDomain(domain: string | undefined): string {
+  if (!domain) return "unknown";
+  if (RESALE_DOMAINS.some((candidate) => domain === candidate || domain.endsWith(`.${candidate}`))) {
+    return "resale_marketplace";
+  }
+  if (RETAIL_DOMAINS.some((candidate) => domain === candidate || domain.endsWith(`.${candidate}`))) {
+    return "retailer";
+  }
+  return "web";
+}
+
+function matchesModel(text: string, identity: PricingIdentity): boolean {
+  if (!identity.normalizedModel) return false;
+  return normalizeModel(text).includes(identity.normalizedModel);
+}
+
+function scoreResult(input: {
+  title: string;
+  snippet: string;
+  domain?: string;
+  marketplaceType: string;
+  exactModelMatch: boolean;
+  detectedPrice?: number;
+  rank: number;
+}): { score: number; reasons: string[] } {
+  const reasons: string[] = [];
+  let score = 0.18;
+
+  if (input.detectedPrice !== undefined) {
+    score += 0.26;
+    reasons.push("price found");
+  }
+  if (input.exactModelMatch) {
+    score += 0.24;
+    reasons.push("model match");
+  }
+  if (input.marketplaceType === "resale_marketplace") {
+    score += 0.2;
+    reasons.push("resale marketplace");
+  }
+  if (input.marketplaceType === "retailer") {
+    score += 0.12;
+    reasons.push("retailer");
+  }
+  if (/\b(used|pre-owned|refurbished|open box|sold|completed)\b/i.test(`${input.title} ${input.snippet}`)) {
+    score += 0.1;
+    reasons.push("condition signal");
+  }
+  if (input.rank <= 3) {
+    score += 0.06;
+    reasons.push("top result");
+  }
+
+  return {
+    score: Math.min(0.98, Number(score.toFixed(2))),
+    reasons,
+  };
+}
+
+function dedupeEvidence(items: EvidenceItem[]): EvidenceItem[] {
+  const bestByKey = new Map<string, EvidenceItem>();
+
+  for (const item of items) {
+    const key = item.url ?? `${item.domain ?? "unknown"}:${normalizeText(item.title)}`;
+    const current = bestByKey.get(key);
+    if (!current || item.relevanceScore > current.relevanceScore) {
+      bestByKey.set(key, item);
+    }
+  }
+
+  return [...bestByKey.values()];
+}
+
+function trimPriceOutliers(prices: number[]): number[] {
+  if (prices.length < 4) return prices;
+  const sorted = [...prices].sort((left, right) => left - right);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  return sorted.filter((price) => price >= median * 0.25 && price <= median * 3);
 }
 
 function summarizePrices(prices: number[]): {
@@ -216,9 +391,12 @@ function summarizePrices(prices: number[]): {
 }
 
 function estimateConfidence(input: { prices: number[]; sources: EvidenceItem[] }): number {
+  const strongSources = input.sources.filter((source) => source.relevanceScore >= 0.7).length;
+  if (input.prices.length >= 4 && strongSources >= 3) return 0.82;
   if (input.prices.length >= 4) return 0.72;
-  if (input.prices.length >= 2) return 0.58;
-  if (input.prices.length === 1) return 0.42;
+  if (input.prices.length >= 2 && strongSources >= 1) return 0.64;
+  if (input.prices.length >= 2) return 0.56;
+  if (input.prices.length === 1) return 0.38;
   return input.sources.length > 0 ? 0.25 : 0;
 }
 
@@ -227,7 +405,9 @@ function buildEvidenceSummary(input: { prices: number[]; sources: EvidenceItem[]
     return "Brave returned sources, but no price-like values were detected in result titles or snippets.";
   }
 
-  return `Detected ${input.prices.length} price signal(s) across ${input.sources.length} Brave result(s). Treat as directional until sold-listing evidence is added.`;
+  const resaleCount = input.sources.filter((source) => source.marketplaceType === "resale_marketplace").length;
+  const retailerCount = input.sources.filter((source) => source.marketplaceType === "retailer").length;
+  return `Detected ${input.prices.length} price signal(s) across ${input.sources.length} Brave result(s), including ${resaleCount} resale and ${retailerCount} retail source(s).`;
 }
 
 function normalizeText(value: string): string {
@@ -237,6 +417,14 @@ function normalizeText(value: string): string {
     .replace(/[^a-z0-9\-_.\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeModel(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9\-_.]/g, "");
 }
 
 function stripHtml(value: string): string {
