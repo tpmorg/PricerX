@@ -120,6 +120,7 @@ export const lookupPricing = action({
     const sources = dedupeEvidence(
       searchResults.map(({ result, query, rank }) => toEvidenceItem(result, args.identity, query, rank)),
     )
+      .filter((source) => isWholeItemComparable(source, args.identity))
       .sort((left, right) => right.relevanceScore - left.relevanceScore)
       .slice(0, MAX_EVIDENCE_ITEMS);
     const priceCandidates = sources
@@ -362,6 +363,23 @@ function dedupeEvidence(items: EvidenceItem[]): EvidenceItem[] {
   }
 
   return [...bestByKey.values()];
+}
+
+function isWholeItemComparable(item: EvidenceItem, identity: PricingIdentity): boolean {
+  const text = `${item.title} ${item.snippet ?? ""}`;
+  const wholeItemTerms = [identity.category, identity.displayName]
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeText);
+  const normalized = normalizeText(text);
+
+  const hasWholeItemSignal = wholeItemTerms.some((term) => term && normalized.includes(term));
+  const looksLikePart =
+    /\b(oem parts?|replacement parts?|power cord|field assembly|dust chute|blade guard|switch assembly|motor assembly|manual only|for parts|parts only)\b/i.test(
+      text,
+    );
+
+  if (looksLikePart && hasWholeItemSignal) return false;
+  return true;
 }
 
 function trimPriceOutliers(prices: number[]): number[] {

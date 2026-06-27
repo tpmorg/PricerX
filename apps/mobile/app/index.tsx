@@ -35,7 +35,7 @@ export default function ScanScreen() {
           Scan, price, remember.
         </Text>
         <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
-          Pricernu starts local. Capture an item photo, store it in SQLite, and attach pricing from local cache first and Brave through Convex when configured.
+          Capture an item photo, store it locally, and price real scans with Brave through Convex.
         </Text>
       </View>
 
@@ -68,7 +68,7 @@ export default function ScanScreen() {
         <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
           {pricingProvider.mode === "convex_brave"
             ? "Fresh pricing will use Brave through Convex when local cache misses."
-            : "Fresh pricing will use the local mock provider until EXPO_PUBLIC_CONVEX_URL is configured."}
+            : "Real scan pricing needs EXPO_PUBLIC_CONVEX_URL. Only Create Mock Scan uses local mock pricing."}
         </Text>
       </View>
 

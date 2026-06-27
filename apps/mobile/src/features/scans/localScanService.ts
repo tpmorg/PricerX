@@ -18,6 +18,7 @@ export async function createMockStoredScan(): Promise<StoredScanDetail> {
   return createStoredScanFromImageUri({
     imageUri: "mock://local-scan/ryobi-tss103.jpg",
     requestPrefix: "mock-scan-request",
+    allowMockPricing: true,
   });
 }
 
@@ -98,6 +99,7 @@ export async function deleteScan(id: string): Promise<void> {
 async function createStoredScanFromImageUri(input: {
   imageUri: string;
   requestPrefix: string;
+  allowMockPricing?: boolean;
 }): Promise<StoredScanDetail> {
   await initializeLocalStorage();
 
@@ -155,6 +157,7 @@ async function createStoredScanFromImageUri(input: {
     inventoryItem,
     identity,
     query: recognition.suggestedPricingQuery,
+    allowMockFallback: input.allowMockPricing === true,
   });
 
   return { scan, inventoryItem, latestPriceEstimate: estimate };

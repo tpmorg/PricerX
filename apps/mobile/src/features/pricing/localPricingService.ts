@@ -10,6 +10,7 @@ export interface LocalPricingLookupInput {
   identity?: ObjectIdentity;
   query?: string;
   forceRefresh?: boolean;
+  allowMockFallback?: boolean;
 }
 
 export interface LocalPricingLookupResult {
@@ -35,7 +36,7 @@ export async function lookupPriceForInventoryItem(
 
   if (!input.forceRefresh) {
     const cached = await localRepositories.priceEstimates.findFreshByCacheKey(lookupCacheKey, nowIso);
-    if (cached) {
+    if (cached && canUseCachedEstimate(cached, input.allowMockFallback === true)) {
       const estimate = cloneCachedEstimateForItem({
         cached,
         inventoryItemId: input.inventoryItem.id,
@@ -46,7 +47,7 @@ export async function lookupPriceForInventoryItem(
     }
   }
 
-  const provider = getPricingProvider();
+  const provider = getPricingProvider({ allowMockFallback: input.allowMockFallback === true });
   const providerResult = await provider.lookup(
     { identity, query, condition: input.inventoryItem.condition },
     { requestId: createLocalId("pricing-request"), now },
@@ -80,8 +81,29 @@ function buildIdentityFromInventoryItem(item: InventoryItem): ObjectIdentity {
   });
 }
 
-function getPricingProvider() {
-  return getConvexUrl() ? convexBravePricingProvider : mockPricingProvider;
+function getPricingProvider(input: { allowMockFallback: boolean }) {
+  if (getConvexUrl()) return convexBravePricingProvider;
+  if (input.allowMockFallback) return mockPricingProvider;
+
+  throw new Error(
+    "Brave pricing is not configured. Set EXPO_PUBLIC_CONVEX_URL in the mobile environment and BRAVE_SEARCH_API_KEY in Convex, then reload the app.",
+  );
+}
+
+function canUseCachedEstimate(estimate: PriceEstimate, allowMockFallback: boolean): boolean {
+  if (allowMockFallback) return true;
+  if (estimate.sourceType === "mock" || estimate.sourceType === "manual") return false;
+
+  if (estimate.sourceType === "local_cache" && estimate.rawEvidenceJson) {
+    try {
+      const raw = JSON.parse(estimate.rawEvidenceJson) as { cachedSourceType?: string };
+      return raw.cachedSourceType !== "mock" && raw.cachedSourceType !== "manual";
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function estimateFromProviderResult(input: {
