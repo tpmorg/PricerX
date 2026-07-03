@@ -9,11 +9,11 @@ build:
 2. Capture a camera photo or choose an existing photo.
 3. Identify the item locally with Gemini Nano / Android AICore through
    `expo-gemini-nano`.
-4. Send the recognized item identity to Convex-backed Brave Search pricing.
+4. Send the recognized item identity to Convex-backed marketplace search.
 5. Persist the scan in SQLite.
 6. Create a linked inventory item.
 7. Create or reuse a local price estimate.
-8. View the scan, item identity, Brave evidence, and price range in
+8. View the scan, item identity, marketplace evidence, and price range in
    history/detail.
 9. Delete the local scan and its linked local records.
 
@@ -27,7 +27,7 @@ Real scan requirements:
   a native module.
 - A device/build where Android AICore reports image description as available.
 - `EXPO_PUBLIC_CONVEX_URL` in the mobile environment.
-- `BRAVE_SEARCH_API_KEY` in the Convex environment.
+- `BRAVE_SEARCH_API_KEY` in the Convex environment if you want discovery fallback beyond Reverb/eBay.
 
 If Gemini Nano reports `downloadable` or `downloading`, the app asks the module
 to warm up and retries status once. If image description is still unavailable,

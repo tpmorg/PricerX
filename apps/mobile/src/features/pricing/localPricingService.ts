@@ -1,6 +1,6 @@
 import type { InventoryItem, ObjectIdentity, PriceEstimate, PricingResult } from "@pricernu/shared";
 import { buildCacheKey, buildObjectIdentity, buildPricingQuery, mockPricingProvider } from "@pricernu/shared";
-import { convexBravePricingProvider, getConvexUrl } from "@/features/pricing/convexPricingProvider";
+import { convexMarketplacePricingProvider, getConvexUrl } from "@/features/pricing/convexPricingProvider";
 import { initializeLocalRepositories, localRepositories } from "@/storage/localRepositories";
 
 const PRICE_TTL_DAYS = 30;
@@ -19,7 +19,7 @@ export interface LocalPricingLookupResult {
 }
 
 export interface PricingProviderStatus {
-  mode: "convex_brave" | "mock";
+  mode: "convex_marketplace" | "mock";
   convexUrlConfigured: boolean;
 }
 
@@ -66,7 +66,7 @@ export async function lookupPriceForInventoryItem(
 export function getPricingProviderStatus(): PricingProviderStatus {
   const convexUrlConfigured = Boolean(getConvexUrl());
   return {
-    mode: convexUrlConfigured ? "convex_brave" : "mock",
+    mode: convexUrlConfigured ? "convex_marketplace" : "mock",
     convexUrlConfigured,
   };
 }
@@ -82,11 +82,11 @@ function buildIdentityFromInventoryItem(item: InventoryItem): ObjectIdentity {
 }
 
 function getPricingProvider(input: { allowMockFallback: boolean }) {
-  if (getConvexUrl()) return convexBravePricingProvider;
+  if (getConvexUrl()) return convexMarketplacePricingProvider;
   if (input.allowMockFallback) return mockPricingProvider;
 
   throw new Error(
-    "Brave pricing is not configured. Set EXPO_PUBLIC_CONVEX_URL in the mobile environment and BRAVE_SEARCH_API_KEY in Convex, then reload the app.",
+    "Marketplace pricing is not configured. Set EXPO_PUBLIC_CONVEX_URL in the mobile environment and configure at least one backend provider, then reload the app.",
   );
 }
 

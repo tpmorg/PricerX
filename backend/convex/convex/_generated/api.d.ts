@@ -13,6 +13,7 @@ import type * as pricing from "../pricing.js";
 import type * as providers_braveProvider from "../providers/braveProvider.js";
 import type * as providers_ebayProvider from "../providers/ebayProvider.js";
 import type * as providers_priceChartingProvider from "../providers/priceChartingProvider.js";
+import type * as providers_reverbProvider from "../providers/reverbProvider.js";
 import type * as providers_sharedPricing from "../providers/sharedPricing.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   "providers/braveProvider": typeof providers_braveProvider;
   "providers/ebayProvider": typeof providers_ebayProvider;
   "providers/priceChartingProvider": typeof providers_priceChartingProvider;
+  "providers/reverbProvider": typeof providers_reverbProvider;
   "providers/sharedPricing": typeof providers_sharedPricing;
 }>;
 

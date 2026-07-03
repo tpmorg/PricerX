@@ -94,7 +94,7 @@ export default function ScanDetailScreen() {
               {item?.displayName ?? scan.ocrText ?? "Local scan"}
             </Text>
             <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
-              {estimate ? `${formatRange(estimate)} from ${estimate.sourceType}` : "Ready for pricing evidence."}
+              {estimate ? `${formatRange(estimate)} from ${formatSourceLabel(estimate.sourceType)}` : "Ready to search marketplace evidence."}
             </Text>
           </View>
 
@@ -118,6 +118,8 @@ export default function ScanDetailScreen() {
               style={{ aspectRatio: 4 / 3, backgroundColor: "#e5e7eb", borderRadius: 8, width: "100%" }}
             />
           )}
+
+          <FlowCard scan={scan} hasIdentity={Boolean(item)} estimate={estimate} />
 
           <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
             <Field label="Brand" value={item?.brand ?? "Unknown"} />
@@ -146,7 +148,7 @@ export default function ScanDetailScreen() {
               <ActivityIndicator color="white" />
             ) : (
               <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>
-                {pricingProvider.mode === "convex_brave" ? "Refresh Pricing with Brave" : "Re-run Local Pricing"}
+                {pricingProvider.mode === "convex_marketplace" ? "Search Marketplaces Again" : "Re-run Local Pricing"}
               </Text>
             )}
           </Pressable>
@@ -169,6 +171,73 @@ export default function ScanDetailScreen() {
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+function FlowCard(input: {
+  scan: NonNullable<StoredScanDetail["scan"]>;
+  hasIdentity: boolean;
+  estimate: PriceEstimate | null | undefined;
+}) {
+  const searchLabel = input.estimate ? formatSourceLabel(input.estimate.sourceType) : "waiting";
+
+  return (
+    <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 12, padding: 14 }}>
+      <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
+        {"Capture -> Analyze -> Search"}
+      </Text>
+      <View style={{ gap: 10 }}>
+        <FlowRow
+          title="Capture"
+          detail={input.scan.imageUri.startsWith("mock://") ? "Mock image fixture saved locally." : "Photo captured and stored locally."}
+          state="done"
+        />
+        <FlowRow
+          title="Analyze"
+          detail={input.hasIdentity ? "Gemini Nano extracted an item identity from the photo." : "Waiting on recognized brand/model/category."}
+          state={input.hasIdentity ? "done" : "pending"}
+        />
+        <FlowRow
+          title="Search"
+          detail={
+            input.estimate
+              ? `Marketplace evidence came back from ${searchLabel}.`
+              : "No marketplace evidence saved yet."
+          }
+          state={input.estimate ? "done" : "pending"}
+        />
+      </View>
+    </View>
+  );
+}
+
+function FlowRow(input: { title: string; detail: string; state: "done" | "pending" }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 10 }}>
+      <View
+        style={{
+          alignItems: "center",
+          backgroundColor: input.state === "done" ? "#dcfce7" : "#e5e7eb",
+          borderRadius: 999,
+          height: 22,
+          justifyContent: "center",
+          marginTop: 2,
+          width: 22,
+        }}
+      >
+        <Text style={{ color: input.state === "done" ? "#166534" : "#6b7280", fontSize: 11, fontWeight: "900" }}>
+          {input.state === "done" ? "OK" : "..."}
+        </Text>
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text selectable style={{ color: "#111827", fontSize: 14, fontWeight: "800" }}>
+          {input.title}
+        </Text>
+        <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+          {input.detail}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -195,6 +264,7 @@ function PriceCard({ estimate }: { estimate: PriceEstimate | null | undefined })
         {formatRange(estimate)}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        <Pill label={formatSourceLabel(estimate.sourceType)} />
         <Pill label={`List ${formatMoney(estimate.suggestedListPrice, estimate.currency)}`} />
         <Pill label={`Buy ${formatMoney(estimate.suggestedBuyPrice, estimate.currency)}`} />
         <Pill label={formatConfidence(estimate.confidence)} />
@@ -226,7 +296,7 @@ function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefi
         </Text>
         {evidence.searchQueries.length > 0 ? (
           <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
-            {evidence.searchQueries.length} buyer-intent search queries checked.
+            {evidence.searchQueries.length} marketplace search quer{evidence.searchQueries.length === 1 ? "y" : "ies"} checked.
           </Text>
         ) : null}
       </View>
@@ -236,6 +306,16 @@ function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefi
           {evidence.searchQueries.map((query) => (
             <Text key={query} selectable style={{ color: "#4b5563", fontSize: 13, lineHeight: 18 }}>
               {query}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
+      {evidence.providerAttempts.length > 0 ? (
+        <View style={{ gap: 6 }}>
+          {evidence.providerAttempts.map((attempt) => (
+            <Text key={`${attempt.name}-${attempt.status}`} selectable style={{ color: "#6b7280", fontSize: 12, lineHeight: 17 }}>
+              {formatProviderAttempt(attempt)}
             </Text>
           ))}
         </View>
@@ -355,6 +435,29 @@ function formatConfidence(value: number | undefined): string {
   return `${Math.round(value * 100)}%`;
 }
 
+function formatSourceLabel(sourceType: PriceEstimate["sourceType"]): string {
+  switch (sourceType) {
+    case "reverb_listing":
+      return "Reverb";
+    case "ebay_browse":
+      return "eBay";
+    case "pricecharting":
+      return "PriceCharting";
+    case "brave_discovery":
+      return "Brave discovery";
+    case "convex_cache":
+      return "cached marketplace result";
+    case "local_cache":
+      return "local cache";
+    case "manual":
+      return "manual estimate";
+    case "mock":
+      return "mock estimate";
+    default:
+      return sourceType.replace(/_/g, " ");
+  }
+}
+
 interface DetailEvidenceItem {
   title: string;
   url?: string;
@@ -373,11 +476,19 @@ interface DetailEvidenceItem {
 interface DetailEvidencePayload {
   searchQueries: string[];
   sources: DetailEvidenceItem[];
+  providerAttempts: ProviderAttempt[];
+}
+
+interface ProviderAttempt {
+  name: string;
+  status: "success" | "skipped" | "error";
+  message: string;
+  sourceType?: PriceEstimate["sourceType"];
 }
 
 function parsePricingEvidence(estimate: PriceEstimate | null | undefined): DetailEvidencePayload {
   if (!estimate?.rawEvidenceJson) {
-    return { searchQueries: [], sources: [] };
+    return { searchQueries: [], sources: [], providerAttempts: [] };
   }
 
   try {
@@ -386,19 +497,27 @@ function parsePricingEvidence(estimate: PriceEstimate | null | undefined): Detai
       evidence?: DetailEvidenceItem[];
       searchQueries?: string[];
       sources?: DetailEvidenceItem[];
+      providerAttempts?: ProviderAttempt[];
     };
     const providerPayload = parsed.estimateRawEvidenceJson
       ? JSON.parse(parsed.estimateRawEvidenceJson) as {
           searchQueries?: string[];
           sources?: DetailEvidenceItem[];
+          providerAttempts?: ProviderAttempt[];
         }
       : parsed;
 
     return {
       searchQueries: providerPayload.searchQueries ?? parsed.searchQueries ?? [],
       sources: providerPayload.sources ?? parsed.sources ?? parsed.evidence ?? [],
+      providerAttempts: providerPayload.providerAttempts ?? parsed.providerAttempts ?? [],
     };
   } catch {
-    return { searchQueries: [], sources: [] };
+    return { searchQueries: [], sources: [], providerAttempts: [] };
   }
+}
+
+function formatProviderAttempt(attempt: ProviderAttempt): string {
+  const label = attempt.sourceType ? `${attempt.name}: ${formatSourceLabel(attempt.sourceType)}` : attempt.name;
+  return `${label} ${attempt.status} - ${attempt.message}`;
 }

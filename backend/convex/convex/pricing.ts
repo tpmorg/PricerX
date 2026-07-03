@@ -19,6 +19,13 @@ export type PricingSourceTypeString =
   | "pricecharting"
   | "brave_discovery";
 
+export interface ProviderAttemptTrace {
+  name: string;
+  status: "success" | "skipped" | "error";
+  message: string;
+  sourceType?: PricingSourceTypeString;
+}
+
 export const lookupPricing = action({
   args: {
     identity: v.object({
@@ -65,6 +72,7 @@ export const lookupPricing = action({
           evidenceSummary: cached.evidenceSummary,
           sources: parseEvidenceJson(cached.evidenceJson),
           searchQueries: [],
+          providerAttempts: [],
           lookupCacheKey: cached.lookupCacheKey,
           creditCost: 0,
           createdAt: cached.createdAt,
@@ -83,7 +91,7 @@ export const lookupPricing = action({
       run: () => Promise<ProviderOutcome>;
     }> = buildProviders(args.identity, args.query, args.condition);
 
-    const attempts: Array<{ name: string; message: string }> = [];
+    const attempts: ProviderAttemptTrace[] = [];
     let structuredWinner: ResolvedPricingResult | null = null;
     let structuredSourceLabel: PricingSourceTypeString | null = null;
     let discoveryWinner: ResolvedPricingResult | null = null;
@@ -91,7 +99,11 @@ export const lookupPricing = action({
     for (const provider of providers) {
       const outcome = await provider.run();
       if (!outcome.ok) {
-        attempts.push({ name: provider.name, message: outcome.message ?? outcome.reason ?? "unknown" });
+        attempts.push({
+          name: provider.name,
+          status: outcome.skip ? "skipped" : "error",
+          message: outcome.message ?? outcome.reason ?? "unknown",
+        });
         continue;
       }
 
@@ -99,6 +111,12 @@ export const lookupPricing = action({
       if (!result) continue;
 
       const sourceLabel = mapSourceTypeLabel(result.sourceType);
+      attempts.push({
+        name: provider.name,
+        status: "success",
+        message: `Returned ${sourceLabel}.`,
+        sourceType: sourceLabel,
+      });
 
       if (STRONG_SOURCE_TYPES.includes(result.sourceType) && !structuredWinner) {
         structuredWinner = result;
@@ -119,7 +137,7 @@ export const lookupPricing = action({
         ok: false,
         reason: "all_providers_failed",
         message: `All configured pricing providers failed to return structured prices. Attempts: ${attempts
-          .map((a) => `${a.name}=${a.message}`)
+          .map((a) => `${a.name}=${a.status}:${a.message}`)
           .join("; ")}`,
         lookupCacheKey,
         creditCost: 0,
@@ -157,6 +175,7 @@ export const lookupPricing = action({
         evidenceSummary: winner.evidenceSummary,
         sources: winner.sources,
         searchQueries: winner.searchQueries,
+        providerAttempts: attempts,
         lookupCacheKey,
         creditCost: winner.creditCost,
         createdAt: winner.createdAt,
@@ -180,6 +199,7 @@ export interface PricingActionSuccess {
     evidenceSummary: string;
     sources: unknown[];
     searchQueries: string[];
+    providerAttempts: ProviderAttemptTrace[];
     lookupCacheKey: string;
     creditCost: number;
     createdAt: string;

@@ -65,7 +65,7 @@ export const mockPricingProvider: PricingProvider = {
         suggestedBuyPrice: 90,
         retailPrice: 329,
         confidence: 0.74,
-        evidenceSummary: "Mock estimate for development. Replace with Brave-backed enrichment.",
+        evidenceSummary: "Mock estimate for development. Replace with marketplace enrichment.",
         rawEvidenceJson: JSON.stringify({ requestId: context.requestId, mocked: true }),
         creditCost: 0,
       },

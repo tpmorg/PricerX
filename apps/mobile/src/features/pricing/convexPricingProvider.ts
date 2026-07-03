@@ -18,6 +18,12 @@ interface ConvexPricingSuccess {
     evidenceSummary: string;
     sources: PricingEvidenceItem[];
     searchQueries: string[];
+    providerAttempts: Array<{
+      name: string;
+      status: "success" | "skipped" | "error";
+      message: string;
+      sourceType?: "convex_cache" | "reverb_listing" | "ebay_browse" | "pricecharting" | "brave_discovery";
+    }>;
     lookupCacheKey: string;
     creditCost: number;
     createdAt: string;
@@ -41,9 +47,9 @@ interface ConvexPricingFailure {
 
 type ConvexPricingResponse = ConvexPricingSuccess | ConvexPricingFailure;
 
-export const convexBravePricingProvider: PricingProvider = {
-  id: "convex-brave-pricing",
-  label: "Convex Brave Pricing",
+export const convexMarketplacePricingProvider: PricingProvider = {
+  id: "convex-marketplace-pricing",
+  label: "Convex Marketplace Pricing",
   async lookup(input) {
     const convexUrl = getConvexUrl();
     if (!convexUrl) {
@@ -74,6 +80,7 @@ export const convexBravePricingProvider: PricingProvider = {
           lookupCacheKey: result.lookupCacheKey,
           createdAt: result.createdAt,
           searchQueries: result.searchQueries,
+          providerAttempts: result.providerAttempts,
           sources: result.sources,
         }),
         ...(result.lowPrice !== undefined ? { lowPrice: result.lowPrice } : {}),
