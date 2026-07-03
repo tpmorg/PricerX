@@ -1,3 +1,4 @@
+import { ArrowsClockwise, Check, ImagesSquare, X } from "phosphor-react-native";
 import { CameraView, type CameraType, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
@@ -115,14 +116,18 @@ export default function CameraScreen() {
           <Pressable
             onPress={() => router.back()}
             style={({ pressed }) => ({
+              alignItems: "center",
               backgroundColor: pressed ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.45)",
               borderColor: "rgba(255,255,255,0.24)",
               borderRadius: 999,
               borderWidth: 1,
+              flexDirection: "row",
+              gap: 8,
               paddingHorizontal: 14,
               paddingVertical: 10,
             })}
           >
+            <X color="white" size={16} weight="bold" />
             <Text selectable style={{ color: "white", fontSize: 15, fontWeight: "700" }}>
               Close
             </Text>
@@ -159,20 +164,39 @@ export default function CameraScreen() {
                 Use this photo for pricing?
               </Text>
               <View style={{ flexDirection: "row", gap: 12 }}>
-                <CameraButton label="Retake" onPress={handleRetake} variant="secondary" disabled={isBusy} />
+                <CameraButton
+                  label="Retake"
+                  onPress={handleRetake}
+                  variant="secondary"
+                  disabled={isBusy}
+                  icon={<ArrowsClockwise color="white" size={18} weight="bold" />}
+                />
                 <CameraButton
                   label={isBusy ? "Analyzing..." : "Use Photo"}
                   onPress={() => void handleUsePhoto()}
                   variant="primary"
                   disabled={isBusy}
+                  icon={<Check color="#111827" size={18} weight="bold" />}
                 />
               </View>
             </>
           ) : (
             <>
               <View style={{ flexDirection: "row", gap: 12 }}>
-                <CameraButton label="Library" onPress={() => void handlePickFromLibrary()} variant="secondary" disabled={isBusy} />
-                <CameraButton label="Flip" onPress={handleFlipCamera} variant="secondary" disabled={isBusy} />
+                <CameraButton
+                  label="Library"
+                  onPress={() => void handlePickFromLibrary()}
+                  variant="secondary"
+                  disabled={isBusy}
+                  icon={<ImagesSquare color="white" size={18} weight="bold" />}
+                />
+                <CameraButton
+                  label="Flip"
+                  onPress={handleFlipCamera}
+                  variant="secondary"
+                  disabled={isBusy}
+                  icon={<ArrowsClockwise color="white" size={18} weight="bold" />}
+                />
               </View>
               <Pressable
                 disabled={isBusy}
@@ -220,6 +244,7 @@ function CameraButton(input: {
   onPress: () => void;
   variant: "primary" | "secondary";
   disabled?: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
     <Pressable
@@ -241,10 +266,14 @@ function CameraButton(input: {
         borderRadius: 16,
         borderWidth: 1,
         flex: 1,
+        flexDirection: "row",
+        gap: 8,
+        justifyContent: "center",
         paddingHorizontal: 14,
         paddingVertical: 14,
       })}
     >
+      {input.icon ? input.icon : null}
       <Text
         selectable
         style={{

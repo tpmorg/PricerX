@@ -1,3 +1,4 @@
+import { ChevronRight, Image as ImageIcon, PackageSearch, Tags } from "lucide-react-native";
 import type { PriceEstimate } from "@pricernu/shared";
 import { Link, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -35,9 +36,12 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadItems} />}
       >
         <View style={{ gap: 6 }}>
-          <Text selectable style={{ fontSize: 28, fontWeight: "800" }}>
-            Recent Captures
-          </Text>
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 10 }}>
+            <PackageSearch color="#111827" size={24} strokeWidth={2.25} />
+            <Text selectable style={{ fontSize: 28, fontWeight: "800" }}>
+              Recent Captures
+            </Text>
+          </View>
           <Text selectable style={{ color: "#4b5563", lineHeight: 21 }}>
             Saved scans live here. Capture from the center button, review the result, then save anything worth keeping.
           </Text>
@@ -52,18 +56,21 @@ export default function HomeScreen() {
         ) : null}
 
         {!isLoading && items.length === 0 ? (
-          <View
-            style={{
-              borderColor: "#d1d5db",
-              borderRadius: 8,
-              borderWidth: 1,
-              gap: 8,
-              padding: 16,
-            }}
-          >
-            <Text selectable style={{ fontSize: 20, fontWeight: "700" }}>
-              Nothing saved yet
-            </Text>
+            <View
+              style={{
+                alignItems: "center",
+                borderColor: "#d1d5db",
+                borderRadius: 8,
+                borderWidth: 1,
+                gap: 8,
+                justifyContent: "center",
+                padding: 16,
+              }}
+            >
+              <ImageIcon color="#9ca3af" size={28} strokeWidth={2.25} />
+              <Text selectable style={{ fontSize: 20, fontWeight: "700" }}>
+                Nothing saved yet
+              </Text>
             <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
               Your first few good captures will show up here after you save them from the results screen.
             </Text>
@@ -105,9 +112,12 @@ export default function HomeScreen() {
                       <HistoryPill label="No price yet" />
                     )}
                   </View>
-                  <Text selectable style={{ color: "#6b7280", fontVariant: ["tabular-nums"], lineHeight: 18 }}>
-                    {new Date((item.latestScan ?? item.inventoryItem).updatedAt ?? item.inventoryItem.updatedAt).toLocaleString()}
-                  </Text>
+                  <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
+                    <Text selectable style={{ color: "#6b7280", fontVariant: ["tabular-nums"], lineHeight: 18 }}>
+                      {new Date((item.latestScan ?? item.inventoryItem).updatedAt ?? item.inventoryItem.updatedAt).toLocaleString()}
+                    </Text>
+                    <ChevronRight color="#9ca3af" size={18} strokeWidth={2.25} />
+                  </View>
                 </View>
               </Pressable>
             </Link>
@@ -132,6 +142,7 @@ function SavedItemThumbnail({ item }: { item: SavedItemSummary }) {
           width: 92,
         }}
       >
+        <ImageIcon color="#6b7280" size={18} strokeWidth={2.25} />
         <Text selectable style={{ color: "#6b7280", fontSize: 12, fontWeight: "700" }}>
           No photo
         </Text>
@@ -151,6 +162,7 @@ function SavedItemThumbnail({ item }: { item: SavedItemSummary }) {
           width: 92,
         }}
       >
+        <Tags color="#6b7280" size={18} strokeWidth={2.25} />
         <Text selectable style={{ color: "#6b7280", fontSize: 12, fontWeight: "700", textAlign: "center" }}>
           Mock photo
         </Text>

@@ -1,3 +1,4 @@
+import { DatabaseZap, Trash2 } from "lucide-react-native";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -46,9 +47,12 @@ export default function SettingsScreen() {
     <SafeAreaView style={{ backgroundColor: "#ffffff", flex: 1 }} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 32, paddingTop: 12 }}>
         <View style={{ gap: 8 }}>
-          <Text selectable style={{ fontSize: 22, fontWeight: "700" }}>
-            Local-first settings
-          </Text>
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 10 }}>
+            <DatabaseZap color="#111827" size={22} strokeWidth={2.25} />
+            <Text selectable style={{ fontSize: 22, fontWeight: "700" }}>
+              Local-first settings
+            </Text>
+          </View>
           <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
             Account sync, cloud enrichment, and credits are intentionally absent from this slice. Local scans should remain useful without any backend.
           </Text>
@@ -66,7 +70,10 @@ export default function SettingsScreen() {
             disabled={isResetting}
             onPress={confirmReset}
             style={({ pressed }) => ({
+              flexDirection: "row",
+              gap: 10,
               alignItems: "center",
+              justifyContent: "center",
               backgroundColor: isResetting ? "#fca5a5" : pressed ? "#991b1b" : "#dc2626",
               borderRadius: 8,
               padding: 14,
@@ -75,7 +82,10 @@ export default function SettingsScreen() {
             {isResetting ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>Reset Local Data</Text>
+              <>
+                <Trash2 color="white" size={18} strokeWidth={2.25} />
+                <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>Reset Local Data</Text>
+              </>
             )}
           </Pressable>
 

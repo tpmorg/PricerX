@@ -1,3 +1,5 @@
+import { House, Settings2, UserRound } from "lucide-react-native";
+import { Camera } from "phosphor-react-native";
 import { Tabs, router } from "expo-router";
 import type { ComponentProps } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -55,7 +57,7 @@ function FloatingCaptureTabBar({ state, descriptors, navigation }: FloatingCaptu
           zIndex: 2,
         })}
       >
-        <TabGlyph routeName="camera" isFocused />
+        <Camera color="#ffffff" size={28} weight="fill" />
       </Pressable>
 
       {state.routes.map((route: FloatingCaptureTabBarProps["state"]["routes"][number], index: number) => {
@@ -104,108 +106,13 @@ function FloatingCaptureTabBar({ state, descriptors, navigation }: FloatingCaptu
 function TabGlyph({ routeName, isFocused }: { routeName: string; isFocused: boolean }) {
   const color = isFocused ? "#111827" : "#6b7280";
 
-  if (routeName === "camera") {
-    return (
-      <View
-        style={{
-          alignItems: "center",
-          borderColor: color,
-          borderRadius: 8,
-          borderWidth: 2,
-          height: 22,
-          justifyContent: "center",
-          width: 28,
-        }}
-      >
-        <View
-          style={{
-            backgroundColor: "transparent",
-            borderColor: color,
-            borderRadius: 999,
-            borderWidth: 2,
-            height: 10,
-            width: 10,
-          }}
-        />
-        <View
-          style={{
-            backgroundColor: color,
-            borderRadius: 999,
-            height: 4,
-            left: 3,
-            position: "absolute",
-            top: -2,
-            width: 10,
-          }}
-        />
-      </View>
-    );
-  }
-
   if (routeName === "index") {
-    return (
-      <View style={{ alignItems: "center", height: 20, justifyContent: "center", width: 20 }}>
-        <View
-          style={{
-            borderBottomWidth: 2,
-            borderColor: color,
-            borderLeftWidth: 2,
-            borderRightWidth: 2,
-            borderTopWidth: 2,
-            height: 14,
-            transform: [{ rotate: "45deg" }],
-            width: 14,
-          }}
-        />
-      </View>
-    );
+    return <House color={color} size={20} strokeWidth={2.25} />;
   }
 
   if (routeName === "account") {
-    return (
-      <View style={{ alignItems: "center", gap: 2, height: 20, justifyContent: "center", width: 20 }}>
-        <View
-          style={{
-            borderColor: color,
-            borderRadius: 999,
-            borderWidth: 2,
-            height: 8,
-            width: 8,
-          }}
-        />
-        <View
-          style={{
-            borderColor: color,
-            borderRadius: 999,
-            borderWidth: 2,
-            height: 8,
-            width: 14,
-          }}
-        />
-      </View>
-    );
+    return <UserRound color={color} size={20} strokeWidth={2.25} />;
   }
 
-  return (
-    <View style={{ alignItems: "center", height: 20, justifyContent: "center", width: 20 }}>
-      <View
-        style={{
-          borderColor: color,
-          borderRadius: 999,
-          borderWidth: 2,
-          height: 14,
-          width: 14,
-        }}
-      />
-      <View
-        style={{
-          backgroundColor: color,
-          borderRadius: 999,
-          height: 4,
-          position: "absolute",
-          width: 4,
-        }}
-      />
-    </View>
-  );
+  return <Settings2 color={color} size={20} strokeWidth={2.25} />;
 }
