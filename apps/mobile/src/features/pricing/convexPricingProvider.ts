@@ -11,6 +11,7 @@ interface ConvexPricingSuccess {
     confidence: number;
     sourceType:
       | "convex_cache"
+      | "reverb_listing"
       | "ebay_browse"
       | "pricecharting"
       | "brave_discovery";

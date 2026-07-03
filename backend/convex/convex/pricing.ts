@@ -2,16 +2,19 @@ import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { ProviderOutcome, ResolvedPricingResult, PricingIdentity } from "./providers/sharedPricing";
+import { isMusicGearIdentity } from "./providers/sharedPricing";
+import { lookupReverbPricing } from "./providers/reverbProvider";
 import { lookupEbayPricing } from "./providers/ebayProvider";
 import { lookupPriceChartingPricing } from "./providers/priceChartingProvider";
 import { lookupBraveDiscovery } from "./providers/braveProvider";
 
 const DEFAULT_CURRENCY = "USD";
 const PRICE_TTL_DAYS = 30;
-const STRONG_SOURCE_TYPES: ResolvedPricingResult["sourceType"][] = ["ebay_browse", "pricecharting"];
+const STRONG_SOURCE_TYPES: ResolvedPricingResult["sourceType"][] = ["reverb_listing", "ebay_browse", "pricecharting"];
 
 export type PricingSourceTypeString =
   | "convex_cache"
+  | "reverb_listing"
   | "ebay_browse"
   | "pricecharting"
   | "brave_discovery";
@@ -78,11 +81,7 @@ export const lookupPricing = action({
     const providers: Array<{
       name: string;
       run: () => Promise<ProviderOutcome>;
-    }> = [
-      { name: "ebay", run: () => lookupEbayPricing({ identity: args.identity, query: args.query, condition: args.condition }) },
-      { name: "pricecharting", run: () => lookupPriceChartingPricing({ identity: args.identity, query: args.query }) },
-      { name: "brave", run: () => lookupBraveDiscovery({ identity: args.identity, query: args.query }) },
-    ];
+    }> = buildProviders(args.identity, args.query, args.condition);
 
     const attempts: Array<{ name: string; message: string }> = [];
     let structuredWinner: ResolvedPricingResult | null = null;
@@ -215,6 +214,8 @@ function buildCacheKey(identity: PricingIdentity): string {
 
 function mapSourceTypeLabel(source: ResolvedPricingResult["sourceType"]): PricingSourceTypeString {
   switch (source) {
+    case "reverb_listing":
+      return "reverb_listing";
     case "ebay_browse":
       return "ebay_browse";
     case "pricecharting":
@@ -222,6 +223,26 @@ function mapSourceTypeLabel(source: ResolvedPricingResult["sourceType"]): Pricin
     case "brave_discovery":
       return "brave_discovery";
   }
+}
+
+function buildProviders(identity: PricingIdentity, query: string, condition?: string) {
+  const generalProviders: Array<{
+    name: string;
+    run: () => Promise<ProviderOutcome>;
+  }> = [
+    { name: "ebay", run: () => lookupEbayPricing({ identity, query, condition }) },
+    { name: "pricecharting", run: () => lookupPriceChartingPricing({ identity, query }) },
+    { name: "brave", run: () => lookupBraveDiscovery({ identity, query }) },
+  ];
+
+  if (!isMusicGearIdentity(identity, query)) {
+    return generalProviders;
+  }
+
+  return [
+    { name: "reverb", run: () => lookupReverbPricing({ identity, query }) },
+    ...generalProviders,
+  ];
 }
 
 function parseEvidenceJson(json: string): unknown[] {

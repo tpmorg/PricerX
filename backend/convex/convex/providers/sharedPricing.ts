@@ -17,7 +17,7 @@ export const PRICE_CEILING = 100000;
 export interface ResolvedPricingResult {
   currency: string;
   confidence: number;
-  sourceType: "ebay_browse" | "pricecharting" | "brave_discovery";
+  sourceType: "reverb_listing" | "ebay_browse" | "pricecharting" | "brave_discovery";
   evidenceSummary: string;
   sources: EvidenceItem[];
   searchQueries: string[];
@@ -150,7 +150,9 @@ export function buildEvidenceSummary(input: {
     return `${input.sourceType} returned sources, but no structured price values were extracted.`;
   }
   const redemptionSignals =
-    input.sourceType === "ebay_browse"
+    input.sourceType === "reverb_listing"
+      ? `${input.exactMatches} exact model match(es) from music-gear listings`
+      : input.sourceType === "ebay_browse"
       ? `${input.exactMatches} exact model match(es)`
       : input.sourceType === "pricecharting"
         ? "structured price guide data"
@@ -158,3 +160,72 @@ export function buildEvidenceSummary(input: {
   return `Detected ${input.prices.length} price signal(s) across ${input.sources.length} ${input.sourceType} source(s); ${redemptionSignals}.`;
 }
 
+const MUSIC_GEAR_CATEGORY_TERMS = [
+  "guitar",
+  "bass",
+  "amp",
+  "amplifier",
+  "pedal",
+  "synth",
+  "synthesizer",
+  "keyboard",
+  "drum",
+  "drums",
+  "microphone",
+  "mic",
+  "dj",
+  "audio",
+  "recording",
+  "mixer",
+  "speaker",
+  "studio monitor",
+  "music",
+];
+
+const MUSIC_GEAR_BRANDS = [
+  "fender",
+  "gibson",
+  "epiphone",
+  "prs",
+  "martin",
+  "taylor",
+  "roland",
+  "yamaha",
+  "korg",
+  "moog",
+  "akai",
+  "boss",
+  "line 6",
+  "mesa boogie",
+  "marshall",
+  "orange",
+  "vox",
+  "shure",
+  "neumann",
+  "audio technica",
+  "focusrite",
+  "universal audio",
+  "native instruments",
+  "pioneer dj",
+  "denon dj",
+];
+
+export function isMusicGearIdentity(identity: PricingIdentity, query: string): boolean {
+  const haystack = normalizeText(
+    [
+      identity.displayName,
+      identity.brand,
+      identity.model,
+      identity.category,
+      identity.variant,
+      query,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return (
+    MUSIC_GEAR_CATEGORY_TERMS.some((term) => haystack.includes(term))
+    || MUSIC_GEAR_BRANDS.some((brand) => haystack.includes(normalizeText(brand)))
+  );
+}
