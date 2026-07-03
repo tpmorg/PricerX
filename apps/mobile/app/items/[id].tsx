@@ -2,6 +2,7 @@ import type { PriceEstimate } from "@pricernu/shared";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
 import {
   deleteScan,
@@ -47,7 +48,7 @@ export default function ScanDetailScreen() {
 
     try {
       await deleteScan(id);
-      router.replace("/history");
+      router.replace("/");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not delete scan.");
       setIsDeleting(false);
@@ -89,7 +90,8 @@ export default function ScanDetailScreen() {
   const estimate = detail?.latestPriceEstimate;
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 20, gap: 16 }}>
+    <SafeAreaView style={{ backgroundColor: "#ffffff", flex: 1 }} edges={["left", "right", "bottom"]}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 32 }}>
       {isLoading ? <ActivityIndicator /> : null}
 
       {error ? (
@@ -217,7 +219,8 @@ export default function ScanDetailScreen() {
           </Pressable>
         </>
       ) : null}
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
