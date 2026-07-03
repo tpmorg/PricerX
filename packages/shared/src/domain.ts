@@ -28,7 +28,9 @@ export type RecognitionStatus =
 export type PriceSourceType =
   | "local_cache"
   | "convex_cache"
-  | "brave_search"
+  | "ebay_browse"
+  | "pricecharting"
+  | "brave_discovery"
   | "mock"
   | "manual"
   | "future_provider";

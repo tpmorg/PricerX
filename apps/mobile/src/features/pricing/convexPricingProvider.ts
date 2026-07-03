@@ -9,7 +9,11 @@ interface ConvexPricingSuccess {
   result: {
     currency: string;
     confidence: number;
-    sourceType: "brave_search";
+    sourceType:
+      | "convex_cache"
+      | "ebay_browse"
+      | "pricecharting"
+      | "brave_discovery";
     evidenceSummary: string;
     sources: PricingEvidenceItem[];
     searchQueries: string[];
@@ -21,6 +25,7 @@ interface ConvexPricingSuccess {
     medianPrice?: number;
     suggestedListPrice?: number;
     suggestedBuyPrice?: number;
+    retailPrice?: number;
   };
 }
 

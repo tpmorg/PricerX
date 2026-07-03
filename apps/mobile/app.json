@@ -18,6 +18,14 @@
       "expo-sqlite",
       "expo-status-bar",
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Pricernu uses your photo library so you can price and catalog items from saved photos.",

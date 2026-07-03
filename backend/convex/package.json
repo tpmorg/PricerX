@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "convex dev",
-    "deploy": "convex deploy"
+    "deploy": "convex deploy",
+    "typecheck": "tsc --noEmit -p convex/tsconfig.json"
   },
   "dependencies": {
     "convex": "^1.42.0"
   },
   "devDependencies": {
+    "@types/node": "^26.0.1",
     "typescript": "~6.0.3"
   }
 }
