@@ -43,6 +43,11 @@ export async function lookupPriceForInventoryItem(
         now,
       });
       await localRepositories.priceEstimates.create(estimate);
+      logLocalPricingDebug("cache_hit", {
+        lookupCacheKey,
+        query,
+        sourceType: cached.sourceType,
+      });
       return { estimate, cacheHit: true };
     }
   }
@@ -60,6 +65,11 @@ export async function lookupPriceForInventoryItem(
   });
 
   await localRepositories.priceEstimates.create(estimate);
+  logLocalPricingDebug("provider_result", {
+    lookupCacheKey,
+    query,
+    sourceType: estimate.sourceType,
+  });
   return { estimate, cacheHit: false };
 }
 
@@ -182,4 +192,22 @@ function createLocalId(prefix: string): string {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function logLocalPricingDebug(
+  event: "cache_hit" | "provider_result",
+  details: {
+    lookupCacheKey: string;
+    query: string;
+    sourceType: PriceEstimate["sourceType"];
+  },
+) {
+  if (typeof __DEV__ !== "undefined" && !__DEV__) return;
+
+  console.info("[pricing] Local pricing flow", {
+    event,
+    query: details.query,
+    lookupCacheKey: details.lookupCacheKey,
+    sourceType: details.sourceType,
+  });
 }

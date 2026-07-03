@@ -64,10 +64,12 @@ export const convexMarketplacePricingProvider: PricingProvider = {
     })) as ConvexPricingResponse;
 
     if (!response.ok) {
+      logPricingFailure(input.query, response);
       throw new Error(response.message);
     }
 
     const result = response.result;
+    logPricingSuccess(input.query, result);
     return {
       estimate: {
         sourceType: result.sourceType,
@@ -97,4 +99,39 @@ export const convexMarketplacePricingProvider: PricingProvider = {
 export function getConvexUrl(): string | null {
   const value = process.env.EXPO_PUBLIC_CONVEX_URL?.trim();
   return value ? value : null;
+}
+
+function logPricingSuccess(query: string, result: ConvexPricingSuccess["result"]) {
+  if (typeof __DEV__ !== "undefined" && !__DEV__) return;
+
+  console.info("[pricing] Marketplace lookup success", {
+    query,
+    sourceType: result.sourceType,
+    confidence: result.confidence,
+    lookupCacheKey: result.lookupCacheKey,
+    searchQueries: result.searchQueries,
+    providerAttempts: result.providerAttempts,
+    prices: {
+      lowPrice: result.lowPrice,
+      medianPrice: result.medianPrice,
+      highPrice: result.highPrice,
+      suggestedListPrice: result.suggestedListPrice,
+      suggestedBuyPrice: result.suggestedBuyPrice,
+      retailPrice: result.retailPrice,
+    },
+    topSources: result.sources.slice(0, 5),
+  });
+}
+
+function logPricingFailure(query: string, response: ConvexPricingFailure) {
+  if (typeof __DEV__ !== "undefined" && !__DEV__) return;
+
+  console.warn("[pricing] Marketplace lookup failed", {
+    query,
+    reason: response.reason,
+    message: response.message,
+    lookupCacheKey: response.lookupCacheKey,
+    creditCost: response.creditCost,
+    createdAt: response.createdAt,
+  });
 }

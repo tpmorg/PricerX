@@ -26,15 +26,41 @@ export const geminiNanoRecognitionProvider: RecognitionProvider = {
     }
 
     const parsed = await parseIdentityWithGemini(description);
+    const brand = sanitizeBrand(parsed.brand);
+    const model = sanitizeModel(parsed.model);
+    const category = sanitizeCategory(parsed.category);
+    const variant = sanitizeField(parsed.variant);
     const objectName = sanitizeObjectName(parsed.objectName) || summarizeDescription(description);
     const identity = buildObjectIdentity({
       objectName,
-      brand: sanitizeField(parsed.brand),
-      model: sanitizeField(parsed.model),
-      category: sanitizeField(parsed.category),
-      variant: sanitizeField(parsed.variant),
+      brand,
+      model,
+      category,
+      variant,
     });
-    const suggestedPricingQuery = buildSuggestedPricingQuery(parsed, identity.displayName, description);
+    const suggestedPricingQuery = buildSuggestedPricingQuery(
+      {
+        ...parsed,
+        brand,
+        model,
+        category,
+        variant,
+        objectName,
+      },
+      identity.displayName,
+      description,
+    );
+
+    logRecognitionDebug({
+      requestId: context.requestId,
+      description,
+      objectName,
+      brand: identity.brand,
+      model: identity.model,
+      category: identity.category,
+      variant: identity.variant,
+      suggestedPricingQuery,
+    });
 
     return {
       objectName,
@@ -47,10 +73,10 @@ export const geminiNanoRecognitionProvider: RecognitionProvider = {
         parsed,
         description,
       },
-      ...(sanitizeField(parsed.brand) ? { brand: sanitizeField(parsed.brand) } : {}),
-      ...(sanitizeField(parsed.model) ? { model: sanitizeField(parsed.model) } : {}),
-      ...(sanitizeField(parsed.category) ? { category: sanitizeField(parsed.category) } : {}),
-      ...(sanitizeField(parsed.variant) ? { variant: sanitizeField(parsed.variant) } : {}),
+      ...(brand ? { brand } : {}),
+      ...(model ? { model } : {}),
+      ...(category ? { category } : {}),
+      ...(variant ? { variant } : {}),
       ...(parsed.conditionNotes ? { conditionNotes: parsed.conditionNotes.trim() } : {}),
       ...(suggestedPricingQuery ? { suggestedPricingQuery } : {}),
     };
@@ -132,28 +158,35 @@ function numberField(value: unknown): number | undefined {
 }
 
 function summarizeDescription(description: string): string {
-  return sanitizeObjectName(
-    description
-      .split(/[.!?\n]/)[0]
-      ?.replace(/\b(the image|this image|the photo|this photo|appears to show|shows|contains)\b/gi, "")
-      .trim(),
-  ) || "Unknown item";
+  const firstSentence = description
+    .split(/[.!?\n]/)[0]
+    ?.replace(/\b(the image|this image|the photo|this photo|appears to show|shows|contains)\b/gi, "")
+    .trim();
+
+  const labeledText = extractLabeledText(firstSentence);
+  if (labeledText) {
+    return `${labeledText} pedal`;
+  }
+
+  return sanitizeObjectName(firstSentence) || "Unknown item";
 }
 
 function buildSuggestedPricingQuery(parsed: ParsedIdentity, displayName: string, description: string): string {
-  const explicitQuery = parsed.suggestedPricingQuery?.trim();
-  if (explicitQuery) return explicitQuery;
+  const explicitQuery = sanitizeSearchPhrase(parsed.suggestedPricingQuery);
+  const structuredQuery = sanitizeSearchPhrase(
+    [
+      parsed.brand,
+      parsed.model,
+      chooseSearchNoun(parsed.category, parsed.objectName),
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" "),
+  );
+  const compactObjectName = sanitizeSearchPhrase(parsed.objectName);
+  const compactDisplayName = sanitizeSearchPhrase(displayName);
+  const compactSummary = sanitizeSearchPhrase(summarizeDescription(description));
 
-  const structured = [
-    sanitizeField(parsed.brand),
-    sanitizeField(parsed.model),
-    sanitizeField(parsed.category) ?? sanitizeObjectName(parsed.objectName),
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
-    .trim();
-
-  return `${structured || displayName || summarizeDescription(description)} used price`.trim();
+  return explicitQuery || structuredQuery || compactObjectName || compactDisplayName || compactSummary || "used item";
 }
 
 function sanitizeField(value: string | undefined): string | undefined {
@@ -162,13 +195,39 @@ function sanitizeField(value: string | undefined): string | undefined {
   return cleaned || undefined;
 }
 
+function sanitizeBrand(value: string | undefined): string | undefined {
+  const cleaned = sanitizeField(value);
+  if (!cleaned) return undefined;
+  if (looksDescriptive(cleaned)) return undefined;
+  return cleaned;
+}
+
+function sanitizeModel(value: string | undefined): string | undefined {
+  const cleaned = sanitizeField(value);
+  if (!cleaned) return undefined;
+  if (looksDescriptive(cleaned)) return undefined;
+  return cleaned;
+}
+
+function sanitizeCategory(value: string | undefined): string | undefined {
+  const cleaned = sanitizeField(value);
+  if (!cleaned) return undefined;
+  if (looksDescriptive(cleaned)) return undefined;
+  return cleaned;
+}
+
 function sanitizeObjectName(value: string | undefined): string | undefined {
   if (!value) return undefined;
 
   const cleaned = value
     .replace(/\b(appears to be|appears to show|looks like|seems to be|sits on|lying on|on a|on an|on the|in a|in an|in the)\b.*$/i, "")
+    .replace(/\b(small|large|tiny|compact|rectangular|square|black|white|red|blue|green|silver|gray|grey|brown|orange|yellow|gold|purple|pink)\b/gi, " ")
+    .replace(/\b(labeled|labelled)\b/gi, " ")
     .replace(/\b(a|an|the)\b\s+/i, "")
     .replace(/\b(box for|package for|packaging for)\b\s*/i, "")
+    .replace(/\bbox\b/gi, " ")
+    .replace(/\bby\s+[a-z0-9&.' -]+$/i, "")
+    .replace(/^(black|white|red|blue|green|silver|gray|grey|brown|orange|yellow|gold|purple|pink)\s+(and\s+(black|white|red|blue|green|silver|gray|grey|brown|orange|yellow|gold|purple|pink)\s+)?/i, "")
     .replace(/[.,;:]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -178,8 +237,83 @@ function sanitizeObjectName(value: string | undefined): string | undefined {
   return cleaned;
 }
 
+function sanitizeSearchPhrase(value: string | undefined): string | undefined {
+  const cleaned = sanitizeObjectName(value);
+  if (!cleaned) return undefined;
+
+  const labeledText = extractLabeledText(value);
+  if (labeledText) {
+    return `${labeledText} pedal`;
+  }
+
+  const normalized = cleaned
+    .replace(/\bused price|new price|sold price|market value|resale value|for sale\b/gi, "")
+    .replace(/\b(photo|image|desk|table|surface|background|room|box|packaging)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized || looksDescriptive(normalized)) return undefined;
+  return normalized;
+}
+
+function chooseSearchNoun(category: string | undefined, objectName: string | undefined): string | undefined {
+  const compactObjectName = sanitizeSearchPhrase(objectName);
+  if (compactObjectName && containsMarketplaceNoun(compactObjectName)) {
+    return compactObjectName;
+  }
+
+  const compactCategory = sanitizeSearchPhrase(category);
+  return compactCategory;
+}
+
+function containsMarketplaceNoun(value: string): boolean {
+  return /\b(pedal|guitar|bass|amp|amplifier|synth|keyboard|mixer|speaker|microphone|drum|controller|interface|monitor|rack|module)\b/i.test(
+    value,
+  );
+}
+
+function looksDescriptive(value: string): boolean {
+  return /\b(sits|sitting|lying|desk|table|surface|background|room|photo|image|appears|shows|contains)\b/i.test(value);
+}
+
+function extractLabeledText(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+
+  const quoted = value.match(/["“”']([A-Za-z0-9][A-Za-z0-9 .\-_/]{1,24})["“”']/)?.[1]?.trim();
+  if (quoted) return quoted.toUpperCase() === quoted ? quoted : quoted;
+
+  const labeled = value.match(/\b(?:labeled|labelled)\s+["“”']?([A-Za-z0-9][A-Za-z0-9 .\-_/]{1,24})["“”']?/i)?.[1]?.trim();
+  if (labeled) return labeled.toUpperCase() === labeled ? labeled : labeled;
+
+  return undefined;
+}
+
 function clampConfidence(value: number): number {
   if (!Number.isFinite(value)) return 0.68;
   if (value > 1) return Math.min(1, value / 100);
   return Math.max(0, Math.min(1, value));
+}
+
+function logRecognitionDebug(input: {
+  requestId: string;
+  description: string;
+  objectName: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+  variant?: string;
+  suggestedPricingQuery: string;
+}) {
+  if (typeof __DEV__ !== "undefined" && !__DEV__) return;
+
+  console.info("[recognition] Gemini Nano result", {
+    requestId: input.requestId,
+    objectName: input.objectName,
+    brand: input.brand,
+    model: input.model,
+    category: input.category,
+    variant: input.variant,
+    suggestedPricingQuery: input.suggestedPricingQuery,
+    description: input.description,
+  });
 }
