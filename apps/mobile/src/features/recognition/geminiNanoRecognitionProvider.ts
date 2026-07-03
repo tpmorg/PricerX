@@ -25,7 +25,7 @@ export const geminiNanoRecognitionProvider: RecognitionProvider = {
       throw new Error("Gemini Nano did not return an image description for this photo.");
     }
 
-    const parsed = await parseIdentityWithGemini(description);
+    const parsed = await parseIdentityWithGemini(description, input.ocrText, input.hints?.userText);
     const brand = sanitizeBrand(parsed.brand);
     const model = sanitizeModel(parsed.model);
     const category = sanitizeCategory(parsed.category);
@@ -98,23 +98,34 @@ async function getReadyStatus(): Promise<GeminiNanoStatus> {
   return status;
 }
 
-async function parseIdentityWithGemini(description: string): Promise<ParsedIdentity> {
+async function parseIdentityWithGemini(
+  description: string,
+  ocrText?: string,
+  userHint?: string,
+): Promise<ParsedIdentity> {
   const status = await geminiNanoModule.getStatus();
   if (status.prompt !== "available") {
     return {};
   }
 
   try {
+    const compactOcrText = sanitizePromptContext(ocrText);
+    const compactUserHint = sanitizePromptContext(userHint);
     const response = await geminiNanoModule.prompt({
       text: [
         "Identify the main sellable item from this product photo description.",
         "Return only compact JSON with keys: objectName, brand, model, category, variant, conditionNotes, confidence, suggestedPricingQuery.",
-        "objectName must be only the item name, ideally 2 to 6 words.",
+        "objectName must be a bare product title, ideally brand plus model, maximum 5 words.",
+        "brand must be only the manufacturer name. model must be only the model name or number.",
         "Do not describe the scene, background, surface, colors, pose, or where the item is sitting.",
-        "Do not return a sentence. Do not include phrases like 'on a desk', 'in a room', 'box for', or 'appears to be'.",
-        "Use null when unknown. Make suggestedPricingQuery a concise marketplace search phrase for used pricing.",
+        "Do not return a sentence. Never include verbs or phrases like 'is shown', 'on a desk', 'in a room', 'box for', 'original packaging', or 'appears to be'.",
+        "Use null when unknown. Make suggestedPricingQuery a concise marketplace search phrase for used pricing, ideally brand plus model only.",
         `Description: ${description}`,
-      ].join("\n"),
+        compactOcrText ? `Visible text/OCR: ${compactOcrText}` : null,
+        compactUserHint ? `User hint: ${compactUserHint}` : null,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join("\n"),
     });
 
     if (response.status !== "available") return {};
@@ -196,21 +207,21 @@ function sanitizeField(value: string | undefined): string | undefined {
 }
 
 function sanitizeBrand(value: string | undefined): string | undefined {
-  const cleaned = sanitizeField(value);
+  const cleaned = sanitizeCompactProductPhrase(value, 3);
   if (!cleaned) return undefined;
   if (looksDescriptive(cleaned)) return undefined;
   return cleaned;
 }
 
 function sanitizeModel(value: string | undefined): string | undefined {
-  const cleaned = sanitizeField(value);
+  const cleaned = sanitizeCompactProductPhrase(value, 4);
   if (!cleaned) return undefined;
   if (looksDescriptive(cleaned)) return undefined;
   return cleaned;
 }
 
 function sanitizeCategory(value: string | undefined): string | undefined {
-  const cleaned = sanitizeField(value);
+  const cleaned = sanitizeCompactProductPhrase(value, 3);
   if (!cleaned) return undefined;
   if (looksDescriptive(cleaned)) return undefined;
   return cleaned;
@@ -221,6 +232,9 @@ function sanitizeObjectName(value: string | undefined): string | undefined {
 
   const cleaned = value
     .replace(/\b(appears to be|appears to show|looks like|seems to be|sits on|lying on|on a|on an|on the|in a|in an|in the)\b.*$/i, "")
+    .replace(/\b(is shown|is pictured|is displayed|is sitting|is lying|shown in|pictured in)\b.*$/i, "")
+    .replace(/\b(with|in)\s+(its|the)?\s*original packaging\b.*$/i, "")
+    .replace(/\b(in|with)\s+original box\b.*$/i, "")
     .replace(/\b(small|large|tiny|compact|rectangular|square|black|white|red|blue|green|silver|gray|grey|brown|orange|yellow|gold|purple|pink)\b/gi, " ")
     .replace(/\b(labeled|labelled)\b/gi, " ")
     .replace(/\b(a|an|the)\b\s+/i, "")
@@ -232,9 +246,7 @@ function sanitizeObjectName(value: string | undefined): string | undefined {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!cleaned) return undefined;
-  if (cleaned.length > 80) return cleaned.slice(0, 80).trim();
-  return cleaned;
+  return sanitizeCompactProductPhrase(cleaned, 6);
 }
 
 function sanitizeSearchPhrase(value: string | undefined): string | undefined {
@@ -248,7 +260,7 @@ function sanitizeSearchPhrase(value: string | undefined): string | undefined {
 
   const normalized = cleaned
     .replace(/\bused price|new price|sold price|market value|resale value|for sale\b/gi, "")
-    .replace(/\b(photo|image|desk|table|surface|background|room|box|packaging)\b/gi, "")
+    .replace(/\b(photo|image|desk|table|surface|background|room|box|packaging|shown|pictured|displayed)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -273,7 +285,9 @@ function containsMarketplaceNoun(value: string): boolean {
 }
 
 function looksDescriptive(value: string): boolean {
-  return /\b(sits|sitting|lying|desk|table|surface|background|room|photo|image|appears|shows|contains)\b/i.test(value);
+  return /\b(sits|sitting|lying|desk|table|surface|background|room|photo|image|appears|shows|contains|shown|pictured|displayed|packaging)\b/i.test(
+    value,
+  );
 }
 
 function extractLabeledText(value: string | undefined): string | undefined {
@@ -286,6 +300,59 @@ function extractLabeledText(value: string | undefined): string | undefined {
   if (labeled) return labeled.toUpperCase() === labeled ? labeled : labeled;
 
   return undefined;
+}
+
+function sanitizePromptContext(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (!cleaned) return undefined;
+  return cleaned.length > 160 ? cleaned.slice(0, 160).trim() : cleaned;
+}
+
+function sanitizeCompactProductPhrase(value: string | undefined, maxTokens: number): string | undefined {
+  const cleaned = sanitizeField(value);
+  if (!cleaned) return undefined;
+
+  const tokens = cleaned
+    .replace(/[.,;:()]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (tokens.length === 0) return undefined;
+
+  const truncated: string[] = [];
+  for (const token of tokens) {
+    if (isProductPhraseStopToken(token)) break;
+    truncated.push(token);
+    if (truncated.length >= maxTokens) break;
+  }
+
+  const joined = truncated.join(" ").trim();
+  if (!joined) return undefined;
+
+  const prioritized = prioritizeModelToken(joined, maxTokens);
+  return prioritized.length > 80 ? prioritized.slice(0, 80).trim() : prioritized;
+}
+
+function isProductPhraseStopToken(token: string): boolean {
+  return /^(is|shown|pictured|displayed|sitting|lying|with|inside|original|packaging|package|boxed|box|case|shown|photo|image)$/i.test(
+    token,
+  );
+}
+
+function prioritizeModelToken(value: string, maxTokens: number): string {
+  const tokens = value.split(/\s+/).filter(Boolean);
+  const modelIndex = tokens.findIndex((token) => looksLikeModelToken(token));
+  if (modelIndex <= 0 || tokens.length <= maxTokens) {
+    return tokens.slice(0, maxTokens).join(" ").trim();
+  }
+
+  const start = Math.max(0, modelIndex - Math.min(2, maxTokens - 1));
+  return tokens.slice(start, start + maxTokens).join(" ").trim();
+}
+
+function looksLikeModelToken(value: string): boolean {
+  return /^(?:[A-Z]{1,6}-?\d{1,4}[A-Z]{0,3}|\d{1,4}[A-Z]{1,6}|[A-Z]{1,4}\d[A-Z0-9-]{1,8})$/i.test(value);
 }
 
 function clampConfidence(value: number): number {
