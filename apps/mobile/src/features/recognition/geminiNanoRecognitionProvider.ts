@@ -26,13 +26,13 @@ export const geminiNanoRecognitionProvider: RecognitionProvider = {
     }
 
     const parsed = await parseIdentityWithGemini(description);
-    const objectName = parsed.objectName?.trim() || summarizeDescription(description);
+    const objectName = sanitizeObjectName(parsed.objectName) || summarizeDescription(description);
     const identity = buildObjectIdentity({
       objectName,
-      brand: parsed.brand,
-      model: parsed.model,
-      category: parsed.category,
-      variant: parsed.variant,
+      brand: sanitizeField(parsed.brand),
+      model: sanitizeField(parsed.model),
+      category: sanitizeField(parsed.category),
+      variant: sanitizeField(parsed.variant),
     });
     const suggestedPricingQuery = buildSuggestedPricingQuery(parsed, identity.displayName, description);
 
@@ -47,10 +47,10 @@ export const geminiNanoRecognitionProvider: RecognitionProvider = {
         parsed,
         description,
       },
-      ...(parsed.brand ? { brand: parsed.brand.trim() } : {}),
-      ...(parsed.model ? { model: parsed.model.trim() } : {}),
-      ...(parsed.category ? { category: parsed.category.trim() } : {}),
-      ...(parsed.variant ? { variant: parsed.variant.trim() } : {}),
+      ...(sanitizeField(parsed.brand) ? { brand: sanitizeField(parsed.brand) } : {}),
+      ...(sanitizeField(parsed.model) ? { model: sanitizeField(parsed.model) } : {}),
+      ...(sanitizeField(parsed.category) ? { category: sanitizeField(parsed.category) } : {}),
+      ...(sanitizeField(parsed.variant) ? { variant: sanitizeField(parsed.variant) } : {}),
       ...(parsed.conditionNotes ? { conditionNotes: parsed.conditionNotes.trim() } : {}),
       ...(suggestedPricingQuery ? { suggestedPricingQuery } : {}),
     };
@@ -81,9 +81,12 @@ async function parseIdentityWithGemini(description: string): Promise<ParsedIdent
   try {
     const response = await geminiNanoModule.prompt({
       text: [
-        "Extract a resale search identity from this product photo description.",
+        "Identify the main sellable item from this product photo description.",
         "Return only compact JSON with keys: objectName, brand, model, category, variant, conditionNotes, confidence, suggestedPricingQuery.",
-        "Use null when unknown. Make suggestedPricingQuery a marketplace search phrase for used pricing.",
+        "objectName must be only the item name, ideally 2 to 6 words.",
+        "Do not describe the scene, background, surface, colors, pose, or where the item is sitting.",
+        "Do not return a sentence. Do not include phrases like 'on a desk', 'in a room', 'box for', or 'appears to be'.",
+        "Use null when unknown. Make suggestedPricingQuery a concise marketplace search phrase for used pricing.",
         `Description: ${description}`,
       ].join("\n"),
     });
@@ -129,24 +132,50 @@ function numberField(value: unknown): number | undefined {
 }
 
 function summarizeDescription(description: string): string {
-  return description
-    .split(/[.!?\n]/)[0]
-    ?.replace(/\b(the image|this image|the photo|this photo|appears to show|shows|contains)\b/gi, "")
-    .trim()
-    .slice(0, 96)
-    || "Unknown item";
+  return sanitizeObjectName(
+    description
+      .split(/[.!?\n]/)[0]
+      ?.replace(/\b(the image|this image|the photo|this photo|appears to show|shows|contains)\b/gi, "")
+      .trim(),
+  ) || "Unknown item";
 }
 
 function buildSuggestedPricingQuery(parsed: ParsedIdentity, displayName: string, description: string): string {
   const explicitQuery = parsed.suggestedPricingQuery?.trim();
   if (explicitQuery) return explicitQuery;
 
-  const structured = [parsed.brand, parsed.model, parsed.category ?? parsed.objectName]
-    .filter(Boolean)
+  const structured = [
+    sanitizeField(parsed.brand),
+    sanitizeField(parsed.model),
+    sanitizeField(parsed.category) ?? sanitizeObjectName(parsed.objectName),
+  ]
+    .filter((value): value is string => Boolean(value))
     .join(" ")
     .trim();
 
   return `${structured || displayName || summarizeDescription(description)} used price`.trim();
+}
+
+function sanitizeField(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  return cleaned || undefined;
+}
+
+function sanitizeObjectName(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+
+  const cleaned = value
+    .replace(/\b(appears to be|appears to show|looks like|seems to be|sits on|lying on|on a|on an|on the|in a|in an|in the)\b.*$/i, "")
+    .replace(/\b(a|an|the)\b\s+/i, "")
+    .replace(/\b(box for|package for|packaging for)\b\s*/i, "")
+    .replace(/[.,;:]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return undefined;
+  if (cleaned.length > 80) return cleaned.slice(0, 80).trim();
+  return cleaned;
 }
 
 function clampConfidence(value: number): number {

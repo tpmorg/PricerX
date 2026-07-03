@@ -52,6 +52,7 @@ interface ReverbListing {
 }
 
 interface ReverbListingsResponse {
+  total?: number;
   listings?: ReverbListing[];
 }
 
@@ -106,14 +107,21 @@ export async function lookupReverbPricing(input: {
   }
 
   const payload = (await response.json()) as ReverbListingsResponse;
-  const sources = (payload.listings ?? [])
+  const rawListings = payload.listings ?? [];
+  const normalizedSources = rawListings
     .map((listing, index) => toReverbEvidence(listing, input.identity, searchQuery, index + 1))
     .filter((source): source is EvidenceItem => source !== null)
-    .filter((source) => source.detectedPrice !== undefined)
+    .filter((source) => source.detectedPrice !== undefined);
+  const sources = normalizedSources
     .slice(0, MAX_EVIDENCE_ITEMS);
 
   if (sources.length === 0) {
-    return { ok: false, skip: true, reason: "no_results", message: "Reverb returned no usable listings." };
+    return {
+      ok: false,
+      skip: true,
+      reason: "no_results",
+      message: `Reverb returned no usable listings for query "${searchQuery}". total=${payload.total ?? 0}, rawListings=${rawListings.length}, normalized=${normalizedSources.length}.`,
+    };
   }
 
   const prices = trimPriceOutliers(
