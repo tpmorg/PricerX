@@ -1,8 +1,9 @@
-import type { InventoryItem, PriceEstimate, Scan } from "@pricernu/shared";
+import type { InventoryItem, ItemPhoto, OcrRecord, PriceEstimate, RecognitionRecord, Scan } from "@pricernu/shared";
 
 export interface LocalDatabase {
   initialize(): Promise<void>;
   transaction<T>(operation: () => Promise<T>): Promise<T>;
+  reset(): Promise<void>;
 }
 
 export interface ScanRepository {
@@ -30,8 +31,32 @@ export interface PriceEstimateRepository {
   deleteForInventoryItem(inventoryItemId: string): Promise<void>;
 }
 
+export interface ItemPhotoRepository {
+  create(photo: ItemPhoto): Promise<void>;
+  listForInventoryItem(inventoryItemId: string): Promise<ItemPhoto[]>;
+  listForScan(scanId: string): Promise<ItemPhoto[]>;
+  deleteForInventoryItem(inventoryItemId: string): Promise<void>;
+}
+
+export interface RecognitionRecordRepository {
+  create(record: RecognitionRecord): Promise<void>;
+  listForScan(scanId: string): Promise<RecognitionRecord[]>;
+  getLatestForScan(scanId: string): Promise<RecognitionRecord | null>;
+  deleteForScan(scanId: string): Promise<void>;
+}
+
+export interface OcrRecordRepository {
+  create(record: OcrRecord): Promise<void>;
+  listForScan(scanId: string): Promise<OcrRecord[]>;
+  getLatestForScan(scanId: string): Promise<OcrRecord | null>;
+  deleteForScan(scanId: string): Promise<void>;
+}
+
 export interface LocalStorageRepositories {
   scans: ScanRepository;
   inventoryItems: InventoryItemRepository;
   priceEstimates: PriceEstimateRepository;
+  itemPhotos: ItemPhotoRepository;
+  recognitionRecords: RecognitionRecordRepository;
+  ocrRecords: OcrRecordRepository;
 }

@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DEFAULT_CAMERA_FACING, pickPhotoFromLibrary } from "@/features/scans/imageCapture";
-import { createStoredScanFromImage } from "@/features/scans/localScanService";
+import { createStagedScanFromImage } from "@/features/scans/localScanService";
 
 export default function CameraScreen() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -56,10 +56,10 @@ export default function CameraScreen() {
     setIsBusy(true);
 
     try {
-      const detail = await createStoredScanFromImage(capturedUri, "camera-scan-request");
+      const detail = await createStagedScanFromImage(capturedUri, "camera-scan-request");
       router.replace({ pathname: "/items/[id]", params: { id: detail.scan.id } });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save the captured photo.");
+      setError(caught instanceof Error ? caught.message : "Could not analyze the captured photo.");
       setIsBusy(false);
     }
   }
@@ -161,7 +161,7 @@ export default function CameraScreen() {
               <View style={{ flexDirection: "row", gap: 12 }}>
                 <CameraButton label="Retake" onPress={handleRetake} variant="secondary" disabled={isBusy} />
                 <CameraButton
-                  label={isBusy ? "Saving..." : "Use Photo"}
+                  label={isBusy ? "Analyzing..." : "Use Photo"}
                   onPress={() => void handleUsePhoto()}
                   variant="primary"
                   disabled={isBusy}

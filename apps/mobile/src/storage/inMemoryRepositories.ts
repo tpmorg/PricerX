@@ -1,9 +1,12 @@
-import type { InventoryItem, PriceEstimate, Scan } from "@pricernu/shared";
+import type { InventoryItem, ItemPhoto, OcrRecord, PriceEstimate, RecognitionRecord, Scan } from "@pricernu/shared";
 import type {
   InventoryItemRepository,
+  ItemPhotoRepository,
   LocalDatabase,
   LocalStorageRepositories,
+  OcrRecordRepository,
   PriceEstimateRepository,
+  RecognitionRecordRepository,
   ScanRepository,
 } from "./storageTypes";
 
@@ -14,6 +17,10 @@ export class InMemoryLocalDatabase implements LocalDatabase {
 
   async transaction<T>(operation: () => Promise<T>): Promise<T> {
     return operation();
+  }
+
+  async reset(): Promise<void> {
+    return;
   }
 }
 
@@ -109,10 +116,93 @@ export class InMemoryPriceEstimateRepository implements PriceEstimateRepository 
   }
 }
 
+export class InMemoryItemPhotoRepository implements ItemPhotoRepository {
+  private readonly photos = new Map<string, ItemPhoto>();
+
+  async create(photo: ItemPhoto): Promise<void> {
+    this.photos.set(photo.id, photo);
+  }
+
+  async listForInventoryItem(inventoryItemId: string): Promise<ItemPhoto[]> {
+    return [...this.photos.values()]
+      .filter((photo) => photo.inventoryItemId === inventoryItemId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async listForScan(scanId: string): Promise<ItemPhoto[]> {
+    return [...this.photos.values()]
+      .filter((photo) => photo.scanId === scanId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async deleteForInventoryItem(inventoryItemId: string): Promise<void> {
+    for (const photo of this.photos.values()) {
+      if (photo.inventoryItemId === inventoryItemId) {
+        this.photos.delete(photo.id);
+      }
+    }
+  }
+}
+
+export class InMemoryRecognitionRecordRepository implements RecognitionRecordRepository {
+  private readonly records = new Map<string, RecognitionRecord>();
+
+  async create(record: RecognitionRecord): Promise<void> {
+    this.records.set(record.id, record);
+  }
+
+  async listForScan(scanId: string): Promise<RecognitionRecord[]> {
+    return [...this.records.values()]
+      .filter((record) => record.scanId === scanId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getLatestForScan(scanId: string): Promise<RecognitionRecord | null> {
+    return (await this.listForScan(scanId))[0] ?? null;
+  }
+
+  async deleteForScan(scanId: string): Promise<void> {
+    for (const record of this.records.values()) {
+      if (record.scanId === scanId) {
+        this.records.delete(record.id);
+      }
+    }
+  }
+}
+
+export class InMemoryOcrRecordRepository implements OcrRecordRepository {
+  private readonly records = new Map<string, OcrRecord>();
+
+  async create(record: OcrRecord): Promise<void> {
+    this.records.set(record.id, record);
+  }
+
+  async listForScan(scanId: string): Promise<OcrRecord[]> {
+    return [...this.records.values()]
+      .filter((record) => record.scanId === scanId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getLatestForScan(scanId: string): Promise<OcrRecord | null> {
+    return (await this.listForScan(scanId))[0] ?? null;
+  }
+
+  async deleteForScan(scanId: string): Promise<void> {
+    for (const record of this.records.values()) {
+      if (record.scanId === scanId) {
+        this.records.delete(record.id);
+      }
+    }
+  }
+}
+
 export function createInMemoryRepositories(): LocalStorageRepositories {
   return {
     scans: new InMemoryScanRepository(),
     inventoryItems: new InMemoryInventoryItemRepository(),
     priceEstimates: new InMemoryPriceEstimateRepository(),
+    itemPhotos: new InMemoryItemPhotoRepository(),
+    recognitionRecords: new InMemoryRecognitionRecordRepository(),
+    ocrRecords: new InMemoryOcrRecordRepository(),
   };
 }

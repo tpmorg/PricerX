@@ -35,7 +35,7 @@ export default function ScanScreen() {
           Scan, price, remember.
         </Text>
         <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
-          Capture an item photo, identify it with local Gemini Nano, then search marketplace comps through Convex.
+          Capture an item photo, identify it with local Gemini Nano, then search marketplace comps before deciding whether to save it locally.
         </Text>
       </View>
 
@@ -75,7 +75,7 @@ export default function ScanScreen() {
       <View style={{ gap: 12 }}>
         <Link href="/history" asChild>
           <Pressable style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, padding: 14 }}>
-            <Text style={{ fontSize: 16, fontWeight: "600" }}>View Scan History</Text>
+            <Text style={{ fontSize: 16, fontWeight: "600" }}>View Saved Items</Text>
           </Pressable>
         </Link>
         <Link href="/settings" asChild>

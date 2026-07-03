@@ -11,6 +11,7 @@ export interface LocalPricingLookupInput {
   query?: string;
   forceRefresh?: boolean;
   allowMockFallback?: boolean;
+  persistResult?: boolean;
 }
 
 export interface LocalPricingLookupResult {
@@ -30,6 +31,7 @@ export async function lookupPriceForInventoryItem(
 
   const now = new Date();
   const nowIso = now.toISOString();
+  const persistResult = input.persistResult !== false;
   const identity = input.identity ?? buildIdentityFromInventoryItem(input.inventoryItem);
   const query = input.query?.trim() || buildPricingQuery(identity);
   const lookupCacheKey = buildCacheKey(identity);
@@ -42,11 +44,13 @@ export async function lookupPriceForInventoryItem(
         inventoryItemId: input.inventoryItem.id,
         now,
       });
-      await localRepositories.priceEstimates.create(estimate);
+      if (persistResult) {
+        await localRepositories.priceEstimates.create(estimate);
+      }
       logLocalPricingDebug("cache_hit", {
         lookupCacheKey,
         query,
-        sourceType: cached.sourceType,
+        sourceType: estimate.sourceType,
       });
       return { estimate, cacheHit: true };
     }
@@ -64,7 +68,9 @@ export async function lookupPriceForInventoryItem(
     now,
   });
 
-  await localRepositories.priceEstimates.create(estimate);
+  if (persistResult) {
+    await localRepositories.priceEstimates.create(estimate);
+  }
   logLocalPricingDebug("provider_result", {
     lookupCacheKey,
     query,

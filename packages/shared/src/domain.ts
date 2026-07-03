@@ -1,5 +1,6 @@
 export type ISODateTime = string;
 export type EntityId = string;
+export type PhotoType = "primary" | "label" | "serial" | "condition" | "accessory" | "other";
 
 export type SyncStatus =
   | "local_only"
@@ -130,6 +131,47 @@ export interface PriceEstimate {
   creditCost: number;
   createdAt: ISODateTime;
   expiresAt?: ISODateTime;
+}
+
+export interface ItemPhoto {
+  id: EntityId;
+  remoteId?: EntityId;
+  inventoryItemId: EntityId;
+  scanId?: EntityId;
+  imageUri: string;
+  thumbnailUri?: string;
+  photoType?: PhotoType;
+  syncStatus: SyncStatus;
+  createdAt: ISODateTime;
+}
+
+export interface RecognitionRecord {
+  id: EntityId;
+  scanId: EntityId;
+  provider: string;
+  objectName?: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+  variant?: string;
+  conditionNotes?: string;
+  confidence?: number;
+  suggestedQuery?: string;
+  rawJson?: string;
+  createdAt: ISODateTime;
+}
+
+export interface OcrRecord {
+  id: EntityId;
+  scanId: EntityId;
+  provider: string;
+  fullText?: string;
+  modelCandidatesJson?: string;
+  serialCandidatesJson?: string;
+  brandCandidatesJson?: string;
+  rawJson?: string;
+  confidence?: number;
+  createdAt: ISODateTime;
 }
 
 export interface PricingEvidenceItem {

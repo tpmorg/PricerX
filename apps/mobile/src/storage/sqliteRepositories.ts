@@ -1,18 +1,24 @@
 import * as SQLite from "expo-sqlite";
 import type {
   InventoryItem,
+  ItemPhoto,
+  OcrRecord,
   OwnershipStatus,
   PriceEstimate,
   PriceSourceType,
+  RecognitionRecord,
   RecognitionStatus,
   Scan,
   SyncStatus,
 } from "@pricernu/shared";
 import type {
   InventoryItemRepository,
+  ItemPhotoRepository,
   LocalDatabase,
   LocalStorageRepositories,
+  OcrRecordRepository,
   PriceEstimateRepository,
+  RecognitionRecordRepository,
   ScanRepository,
 } from "./storageTypes";
 
@@ -82,6 +88,47 @@ interface PriceEstimateRow {
   expires_at: string | null;
 }
 
+interface ItemPhotoRow {
+  id: string;
+  remote_id: string | null;
+  inventory_item_id: string;
+  scan_id: string | null;
+  image_uri: string;
+  thumbnail_uri: string | null;
+  photo_type: string | null;
+  sync_status: SyncStatus;
+  created_at: string;
+}
+
+interface RecognitionRecordRow {
+  id: string;
+  scan_id: string;
+  provider: string;
+  object_name: string | null;
+  brand: string | null;
+  model: string | null;
+  category: string | null;
+  variant: string | null;
+  condition_notes: string | null;
+  confidence: number | null;
+  suggested_query: string | null;
+  raw_json: string | null;
+  created_at: string;
+}
+
+interface OcrRecordRow {
+  id: string;
+  scan_id: string;
+  provider: string;
+  full_text: string | null;
+  model_candidates_json: string | null;
+  serial_candidates_json: string | null;
+  brand_candidates_json: string | null;
+  raw_json: string | null;
+  confidence: number | null;
+  created_at: string;
+}
+
 export class SQLiteLocalDatabase implements LocalDatabase {
   private dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -98,6 +145,26 @@ export class SQLiteLocalDatabase implements LocalDatabase {
       const result = await operation();
       await db.execAsync("COMMIT;");
       return result;
+    } catch (error) {
+      await db.execAsync("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  async reset(): Promise<void> {
+    const db = await this.getDatabase();
+    await db.execAsync("BEGIN TRANSACTION;");
+
+    try {
+      await db.execAsync(`
+        DELETE FROM ocr_results;
+        DELETE FROM recognition_results;
+        DELETE FROM item_photos;
+        DELETE FROM price_estimates;
+        DELETE FROM scans;
+        DELETE FROM inventory_items;
+      `);
+      await db.execAsync("COMMIT;");
     } catch (error) {
       await db.execAsync("ROLLBACK;");
       throw error;
@@ -368,6 +435,146 @@ export class SQLitePriceEstimateRepository implements PriceEstimateRepository {
   }
 }
 
+export class SQLiteItemPhotoRepository implements ItemPhotoRepository {
+  constructor(private readonly database: SQLiteLocalDatabase) {}
+
+  async create(photo: ItemPhoto): Promise<void> {
+    const db = await this.database.getDatabase();
+    await db.runAsync(
+      `INSERT INTO item_photos (
+        id,
+        remote_id,
+        inventory_item_id,
+        scan_id,
+        image_uri,
+        thumbnail_uri,
+        photo_type,
+        sync_status,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      toItemPhotoValues(photo),
+    );
+  }
+
+  async listForInventoryItem(inventoryItemId: string): Promise<ItemPhoto[]> {
+    const db = await this.database.getDatabase();
+    const rows = await db.getAllAsync<ItemPhotoRow>(
+      "SELECT * FROM item_photos WHERE inventory_item_id = ? ORDER BY created_at DESC",
+      [inventoryItemId],
+    );
+    return rows.map(toItemPhoto);
+  }
+
+  async listForScan(scanId: string): Promise<ItemPhoto[]> {
+    const db = await this.database.getDatabase();
+    const rows = await db.getAllAsync<ItemPhotoRow>(
+      "SELECT * FROM item_photos WHERE scan_id = ? ORDER BY created_at DESC",
+      [scanId],
+    );
+    return rows.map(toItemPhoto);
+  }
+
+  async deleteForInventoryItem(inventoryItemId: string): Promise<void> {
+    const db = await this.database.getDatabase();
+    await db.runAsync("DELETE FROM item_photos WHERE inventory_item_id = ?", [inventoryItemId]);
+  }
+}
+
+export class SQLiteRecognitionRecordRepository implements RecognitionRecordRepository {
+  constructor(private readonly database: SQLiteLocalDatabase) {}
+
+  async create(record: RecognitionRecord): Promise<void> {
+    const db = await this.database.getDatabase();
+    await db.runAsync(
+      `INSERT INTO recognition_results (
+        id,
+        scan_id,
+        provider,
+        object_name,
+        brand,
+        model,
+        category,
+        variant,
+        condition_notes,
+        confidence,
+        suggested_query,
+        raw_json,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      toRecognitionRecordValues(record),
+    );
+  }
+
+  async listForScan(scanId: string): Promise<RecognitionRecord[]> {
+    const db = await this.database.getDatabase();
+    const rows = await db.getAllAsync<RecognitionRecordRow>(
+      "SELECT * FROM recognition_results WHERE scan_id = ? ORDER BY created_at DESC",
+      [scanId],
+    );
+    return rows.map(toRecognitionRecord);
+  }
+
+  async getLatestForScan(scanId: string): Promise<RecognitionRecord | null> {
+    const db = await this.database.getDatabase();
+    const row = await db.getFirstAsync<RecognitionRecordRow>(
+      "SELECT * FROM recognition_results WHERE scan_id = ? ORDER BY created_at DESC LIMIT 1",
+      [scanId],
+    );
+    return row ? toRecognitionRecord(row) : null;
+  }
+
+  async deleteForScan(scanId: string): Promise<void> {
+    const db = await this.database.getDatabase();
+    await db.runAsync("DELETE FROM recognition_results WHERE scan_id = ?", [scanId]);
+  }
+}
+
+export class SQLiteOcrRecordRepository implements OcrRecordRepository {
+  constructor(private readonly database: SQLiteLocalDatabase) {}
+
+  async create(record: OcrRecord): Promise<void> {
+    const db = await this.database.getDatabase();
+    await db.runAsync(
+      `INSERT INTO ocr_results (
+        id,
+        scan_id,
+        provider,
+        full_text,
+        model_candidates_json,
+        serial_candidates_json,
+        brand_candidates_json,
+        raw_json,
+        confidence,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      toOcrRecordValues(record),
+    );
+  }
+
+  async listForScan(scanId: string): Promise<OcrRecord[]> {
+    const db = await this.database.getDatabase();
+    const rows = await db.getAllAsync<OcrRecordRow>(
+      "SELECT * FROM ocr_results WHERE scan_id = ? ORDER BY created_at DESC",
+      [scanId],
+    );
+    return rows.map(toOcrRecord);
+  }
+
+  async getLatestForScan(scanId: string): Promise<OcrRecord | null> {
+    const db = await this.database.getDatabase();
+    const row = await db.getFirstAsync<OcrRecordRow>(
+      "SELECT * FROM ocr_results WHERE scan_id = ? ORDER BY created_at DESC LIMIT 1",
+      [scanId],
+    );
+    return row ? toOcrRecord(row) : null;
+  }
+
+  async deleteForScan(scanId: string): Promise<void> {
+    const db = await this.database.getDatabase();
+    await db.runAsync("DELETE FROM ocr_results WHERE scan_id = ?", [scanId]);
+  }
+}
+
 export function createSQLiteRepositories(): LocalStorageRepositories & { database: SQLiteLocalDatabase } {
   const database = new SQLiteLocalDatabase();
   return {
@@ -375,6 +582,9 @@ export function createSQLiteRepositories(): LocalStorageRepositories & { databas
     scans: new SQLiteScanRepository(database),
     inventoryItems: new SQLiteInventoryItemRepository(database),
     priceEstimates: new SQLitePriceEstimateRepository(database),
+    itemPhotos: new SQLiteItemPhotoRepository(database),
+    recognitionRecords: new SQLiteRecognitionRecordRepository(database),
+    ocrRecords: new SQLiteOcrRecordRepository(database),
   };
 }
 
@@ -457,6 +667,54 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS inventory_items_updated_at_idx ON inventory_items(updated_at DESC);
     CREATE INDEX IF NOT EXISTS price_estimates_inventory_item_id_idx ON price_estimates(inventory_item_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS price_estimates_lookup_cache_key_idx ON price_estimates(lookup_cache_key, created_at DESC);
+  `);
+
+  await applyMigration(db, 3, "create_local_analysis_tables", `
+    CREATE TABLE IF NOT EXISTS item_photos (
+      id TEXT PRIMARY KEY,
+      remote_id TEXT,
+      inventory_item_id TEXT NOT NULL,
+      scan_id TEXT,
+      image_uri TEXT NOT NULL,
+      thumbnail_uri TEXT,
+      photo_type TEXT,
+      sync_status TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS recognition_results (
+      id TEXT PRIMARY KEY,
+      scan_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      object_name TEXT,
+      brand TEXT,
+      model TEXT,
+      category TEXT,
+      variant TEXT,
+      condition_notes TEXT,
+      confidence REAL,
+      suggested_query TEXT,
+      raw_json TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ocr_results (
+      id TEXT PRIMARY KEY,
+      scan_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      full_text TEXT,
+      model_candidates_json TEXT,
+      serial_candidates_json TEXT,
+      brand_candidates_json TEXT,
+      raw_json TEXT,
+      confidence REAL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS item_photos_inventory_item_id_idx ON item_photos(inventory_item_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS item_photos_scan_id_idx ON item_photos(scan_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS recognition_results_scan_id_idx ON recognition_results(scan_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS ocr_results_scan_id_idx ON ocr_results(scan_id, created_at DESC);
   `);
 }
 
@@ -614,5 +872,99 @@ function toPriceEstimate(row: PriceEstimateRow): PriceEstimate {
     ...(row.raw_evidence_json ? { rawEvidenceJson: row.raw_evidence_json } : {}),
     ...(row.lookup_cache_key ? { lookupCacheKey: row.lookup_cache_key } : {}),
     ...(row.expires_at ? { expiresAt: row.expires_at } : {}),
+  };
+}
+
+function toItemPhotoValues(photo: ItemPhoto): BindValue[] {
+  return [
+    photo.id,
+    photo.remoteId ?? null,
+    photo.inventoryItemId,
+    photo.scanId ?? null,
+    photo.imageUri,
+    photo.thumbnailUri ?? null,
+    photo.photoType ?? null,
+    photo.syncStatus,
+    photo.createdAt,
+  ];
+}
+
+function toItemPhoto(row: ItemPhotoRow): ItemPhoto {
+  return {
+    id: row.id,
+    inventoryItemId: row.inventory_item_id,
+    imageUri: row.image_uri,
+    syncStatus: row.sync_status,
+    createdAt: row.created_at,
+    ...(row.remote_id ? { remoteId: row.remote_id } : {}),
+    ...(row.scan_id ? { scanId: row.scan_id } : {}),
+    ...(row.thumbnail_uri ? { thumbnailUri: row.thumbnail_uri } : {}),
+    ...(row.photo_type ? { photoType: row.photo_type as ItemPhoto["photoType"] } : {}),
+  };
+}
+
+function toRecognitionRecordValues(record: RecognitionRecord): BindValue[] {
+  return [
+    record.id,
+    record.scanId,
+    record.provider,
+    record.objectName ?? null,
+    record.brand ?? null,
+    record.model ?? null,
+    record.category ?? null,
+    record.variant ?? null,
+    record.conditionNotes ?? null,
+    record.confidence ?? null,
+    record.suggestedQuery ?? null,
+    record.rawJson ?? null,
+    record.createdAt,
+  ];
+}
+
+function toRecognitionRecord(row: RecognitionRecordRow): RecognitionRecord {
+  return {
+    id: row.id,
+    scanId: row.scan_id,
+    provider: row.provider,
+    createdAt: row.created_at,
+    ...(row.object_name ? { objectName: row.object_name } : {}),
+    ...(row.brand ? { brand: row.brand } : {}),
+    ...(row.model ? { model: row.model } : {}),
+    ...(row.category ? { category: row.category } : {}),
+    ...(row.variant ? { variant: row.variant } : {}),
+    ...(row.condition_notes ? { conditionNotes: row.condition_notes } : {}),
+    ...(row.confidence !== null ? { confidence: row.confidence } : {}),
+    ...(row.suggested_query ? { suggestedQuery: row.suggested_query } : {}),
+    ...(row.raw_json ? { rawJson: row.raw_json } : {}),
+  };
+}
+
+function toOcrRecordValues(record: OcrRecord): BindValue[] {
+  return [
+    record.id,
+    record.scanId,
+    record.provider,
+    record.fullText ?? null,
+    record.modelCandidatesJson ?? null,
+    record.serialCandidatesJson ?? null,
+    record.brandCandidatesJson ?? null,
+    record.rawJson ?? null,
+    record.confidence ?? null,
+    record.createdAt,
+  ];
+}
+
+function toOcrRecord(row: OcrRecordRow): OcrRecord {
+  return {
+    id: row.id,
+    scanId: row.scan_id,
+    provider: row.provider,
+    createdAt: row.created_at,
+    ...(row.full_text ? { fullText: row.full_text } : {}),
+    ...(row.model_candidates_json ? { modelCandidatesJson: row.model_candidates_json } : {}),
+    ...(row.serial_candidates_json ? { serialCandidatesJson: row.serial_candidates_json } : {}),
+    ...(row.brand_candidates_json ? { brandCandidatesJson: row.brand_candidates_json } : {}),
+    ...(row.raw_json ? { rawJson: row.raw_json } : {}),
+    ...(row.confidence !== null ? { confidence: row.confidence } : {}),
   };
 }

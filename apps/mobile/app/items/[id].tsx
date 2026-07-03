@@ -7,6 +7,7 @@ import {
   deleteScan,
   getStoredScanDetail,
   refreshStoredScanPricing,
+  saveStoredScan,
   type StoredScanDetail,
 } from "@/features/scans/localScanService";
 
@@ -16,6 +17,7 @@ export default function ScanDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRefreshingPrice, setIsRefreshingPrice] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pricingProvider = getPricingProviderStatus();
 
@@ -64,6 +66,21 @@ export default function ScanDetailScreen() {
       setError(caught instanceof Error ? caught.message : "Could not refresh pricing.");
     } finally {
       setIsRefreshingPrice(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!id) return;
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const nextDetail = await saveStoredScan(id);
+      setDetail(nextDetail);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save scan.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -121,6 +138,17 @@ export default function ScanDetailScreen() {
 
           <FlowCard scan={scan} hasIdentity={Boolean(item)} estimate={estimate} />
 
+          {!detail.isSaved ? (
+            <View style={{ backgroundColor: "#eff6ff", borderColor: "#bfdbfe", borderRadius: 8, borderWidth: 1, gap: 8, padding: 14 }}>
+              <Text selectable style={{ color: "#1d4ed8", fontSize: 16, fontWeight: "800" }}>
+                Unsaved result
+              </Text>
+              <Text selectable style={{ color: "#1e3a8a", lineHeight: 20 }}>
+                This photo and its analysis are staged only. Nothing has been written to the local database yet.
+              </Text>
+            </View>
+          ) : null}
+
           <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
             <Field label="Brand" value={item?.brand ?? "Unknown"} />
             <Field label="Model" value={item?.model ?? "Unknown"} />
@@ -133,6 +161,25 @@ export default function ScanDetailScreen() {
 
           <PriceCard estimate={estimate} />
           <EvidenceSection estimate={estimate} />
+
+          {!detail.isSaved ? (
+            <Pressable
+              disabled={isSaving}
+              onPress={() => void handleSave()}
+              style={({ pressed }) => ({
+                alignItems: "center",
+                backgroundColor: isSaving ? "#9ca3af" : pressed ? "#111827" : "#0f172a",
+                borderRadius: 8,
+                padding: 14,
+              })}
+            >
+              {isSaving ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>Save to Local Database</Text>
+              )}
+            </Pressable>
+          ) : null}
 
           <Pressable
             disabled={isRefreshingPrice || !item}
@@ -165,7 +212,7 @@ export default function ScanDetailScreen() {
             })}
           >
             <Text style={{ color: "#dc2626", fontSize: 16, fontWeight: "700" }}>
-              {isDeleting ? "Deleting..." : "Delete Local Scan"}
+              {isDeleting ? (detail?.isSaved ? "Deleting..." : "Discarding...") : detail?.isSaved ? "Delete Local Scan" : "Discard Result"}
             </Text>
           </Pressable>
         </>
@@ -189,7 +236,7 @@ function FlowCard(input: {
       <View style={{ gap: 10 }}>
         <FlowRow
           title="Capture"
-          detail={input.scan.imageUri.startsWith("mock://") ? "Mock image fixture saved locally." : "Photo captured and stored locally."}
+          detail={input.scan.imageUri.startsWith("mock://") ? "Mock image fixture captured for testing." : "Photo captured and ready for review."}
           state="done"
         />
         <FlowRow
@@ -198,7 +245,7 @@ function FlowCard(input: {
           state={input.hasIdentity ? "done" : "pending"}
         />
         <FlowRow
-          title="Search"
+          title={input.estimate ? "Search" : "Search"}
           detail={
             input.estimate
               ? `Marketplace evidence came back from ${searchLabel}.`
@@ -299,6 +346,9 @@ function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefi
             {evidence.searchQueries.length} marketplace search quer{evidence.searchQueries.length === 1 ? "y" : "ies"} checked.
           </Text>
         ) : null}
+        <Text selectable style={{ color: "#6b7280", fontSize: 13, lineHeight: 18 }}>
+          Tap any result to open the original listing.
+        </Text>
       </View>
 
       {evidence.searchQueries.length > 0 ? (
@@ -381,6 +431,28 @@ function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
       <Text selectable style={{ color: "#6b7280", fontSize: 12, lineHeight: 17 }}>
         {reasons}
       </Text>
+
+      {source.url ? (
+        <View
+          style={{
+            alignItems: "center",
+            borderColor: "#cbd5e1",
+            borderRadius: 8,
+            borderWidth: 1,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <Text selectable numberOfLines={1} style={{ color: "#1d4ed8", flex: 1, fontSize: 13, fontWeight: "700" }}>
+            View listing
+          </Text>
+          <Text selectable style={{ color: "#64748b", fontSize: 12, fontWeight: "700" }}>
+            Open
+          </Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
