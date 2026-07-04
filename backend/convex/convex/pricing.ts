@@ -1,8 +1,8 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { api } from "./_generated/api";
-import type { ProviderOutcome, ResolvedPricingResult, PricingIdentity } from "./providers/sharedPricing";
-import { isMusicGearIdentity } from "./providers/sharedPricing";
+import type { EvidenceItem, ProviderOutcome, ResolvedPricingResult, PricingIdentity } from "./providers/sharedPricing";
+import { estimateConfidence, isMusicGearIdentity, summarizePrices, trimPriceOutliers } from "./providers/sharedPricing";
 import { lookupReverbPricing } from "./providers/reverbProvider";
 import { lookupEbayPricing } from "./providers/ebayProvider";
 import { lookupPriceChartingPricing } from "./providers/priceChartingProvider";
@@ -92,9 +92,8 @@ export const lookupPricing = action({
     }> = buildProviders(args.identity, args.query, args.condition);
 
     const attempts: ProviderAttemptTrace[] = [];
-    let structuredWinner: ResolvedPricingResult | null = null;
-    let structuredSourceLabel: PricingSourceTypeString | null = null;
-    let discoveryWinner: ResolvedPricingResult | null = null;
+    const structuredResults: ResolvedPricingResult[] = [];
+    const discoveryResults: ResolvedPricingResult[] = [];
 
     for (const provider of providers) {
       const outcome = await provider.run();
@@ -118,19 +117,20 @@ export const lookupPricing = action({
         sourceType: sourceLabel,
       });
 
-      if (STRONG_SOURCE_TYPES.includes(result.sourceType) && !structuredWinner) {
-        structuredWinner = result;
-        structuredSourceLabel = sourceLabel;
-        break;
+      if (STRONG_SOURCE_TYPES.includes(result.sourceType)) {
+        structuredResults.push(result);
+        continue;
       }
 
-      if (!discoveryWinner && result.sourceType === "brave_discovery") {
-        discoveryWinner = result;
+      if (result.sourceType === "brave_discovery") {
+        discoveryResults.push(result);
       }
     }
 
-    const winner = structuredWinner ?? discoveryWinner;
-    const winnerLabel = structuredSourceLabel ?? (discoveryWinner ? "brave_discovery" : null);
+    const winner = structuredResults.length > 0
+      ? combineStructuredResults(structuredResults, discoveryResults, lookupCacheKey)
+      : discoveryResults[0] ?? null;
+    const winnerLabel = winner ? mapSourceTypeLabel(winner.sourceType) : null;
 
     if (!winner || !winnerLabel) {
       return {
@@ -271,5 +271,101 @@ function parseEvidenceJson(json: string): unknown[] {
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
+  }
+}
+
+function combineStructuredResults(
+  structuredResults: ResolvedPricingResult[],
+  discoveryResults: ResolvedPricingResult[],
+  lookupCacheKey: string,
+): ResolvedPricingResult {
+  const primary = structuredResults[0];
+  const structuredSources = structuredResults.flatMap((result) => result.sources);
+  const discoverySources = discoveryResults.flatMap((result) => result.sources);
+  const allSources = dedupeEvidenceSources([...structuredSources, ...discoverySources]).slice(0, 16);
+  const allQueries = Array.from(
+    new Set([...structuredResults.flatMap((result) => result.searchQueries), ...discoveryResults.flatMap((result) => result.searchQueries)]),
+  );
+  const structuredPrices = trimPriceOutliers(
+    structuredSources
+      .map((source) => source.detectedPrice)
+      .filter((price): price is number => typeof price === "number" && Number.isFinite(price) && price > 0),
+  );
+  const exactMatches = structuredSources.filter((source) => source.exactModelMatch).length;
+  const providerLabels = Array.from(new Set(structuredResults.map((result) => mapSourceTypeLabel(result.sourceType))));
+  const range = summarizePrices(structuredPrices);
+  const retailCandidates = structuredResults
+    .map((result) => result.retailPrice)
+    .filter((price): price is number => typeof price === "number" && Number.isFinite(price) && price > 0);
+  const retailPrice = retailCandidates.length > 0 ? Math.round(retailCandidates.reduce((sum, price) => sum + price, 0) / retailCandidates.length) : undefined;
+  const confidence = Math.max(
+    primary.confidence,
+    estimateConfidence({
+      prices: structuredPrices,
+      sources: structuredSources,
+      exactMatchCount: exactMatches,
+    }),
+  );
+
+  return {
+    currency: primary.currency,
+    confidence: Math.min(0.94, confidence + Math.min(0.1, (providerLabels.length - 1) * 0.05)),
+    sourceType: primary.sourceType,
+    evidenceSummary: buildAggregateSummary({
+      providerLabels,
+      structuredPricesCount: structuredPrices.length,
+      sourceCount: structuredSources.length,
+      exactMatchCount: exactMatches,
+      discoveryCount: discoverySources.length,
+    }),
+    sources: allSources,
+    searchQueries: allQueries,
+    lookupCacheKey,
+    creditCost: structuredResults.reduce((sum, result) => sum + result.creditCost, 0) + discoveryResults.reduce((sum, result) => sum + result.creditCost, 0),
+    createdAt: new Date().toISOString(),
+    ...(range.lowPrice !== undefined ? { lowPrice: range.lowPrice, suggestedBuyPrice: range.lowPrice } : {}),
+    ...(range.highPrice !== undefined ? { highPrice: range.highPrice, suggestedListPrice: range.highPrice } : {}),
+    ...(range.medianPrice !== undefined ? { medianPrice: range.medianPrice } : {}),
+    ...(retailPrice !== undefined ? { retailPrice } : {}),
+  };
+}
+
+function dedupeEvidenceSources(sources: EvidenceItem[]): EvidenceItem[] {
+  const seen = new Set<string>();
+  const ranked = [...sources].sort((left, right) => (right.relevanceScore ?? 0) - (left.relevanceScore ?? 0));
+  return ranked.filter((source) => {
+    const key = `${source.url ?? ""}|${source.title.toLowerCase()}|${source.sourceType}|${source.detectedPrice ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildAggregateSummary(input: {
+  providerLabels: PricingSourceTypeString[];
+  structuredPricesCount: number;
+  sourceCount: number;
+  exactMatchCount: number;
+  discoveryCount: number;
+}): string {
+  const providerText = input.providerLabels.length === 1
+    ? mapSourceTypeLabelToName(input.providerLabels[0])
+    : input.providerLabels.map(mapSourceTypeLabelToName).join(", ");
+  const discoveryText = input.discoveryCount > 0 ? ` Added ${input.discoveryCount} discovery lead${input.discoveryCount === 1 ? "" : "s"}.` : "";
+  return `Combined ${input.structuredPricesCount} price signal(s) from ${input.sourceCount} listing${input.sourceCount === 1 ? "" : "s"} across ${providerText}. ${input.exactMatchCount} exact model match${input.exactMatchCount === 1 ? "" : "es"} found.${discoveryText}`;
+}
+
+function mapSourceTypeLabelToName(sourceType: PricingSourceTypeString): string {
+  switch (sourceType) {
+    case "reverb_listing":
+      return "Reverb";
+    case "ebay_browse":
+      return "eBay";
+    case "pricecharting":
+      return "PriceCharting";
+    case "brave_discovery":
+      return "Brave";
+    case "convex_cache":
+      return "cache";
   }
 }

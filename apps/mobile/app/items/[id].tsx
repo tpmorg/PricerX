@@ -3,6 +3,7 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { brandColors, brandRadii } from "@/theme/brand";
 import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
 import {
   deleteScan,
@@ -124,6 +125,27 @@ export default function ScanDetailScreen() {
   const scan = detail?.scan;
   const item = detail?.inventoryItem;
   const estimate = detail?.latestPriceEstimate;
+  const currentTitle = item?.displayName ?? "";
+  const trimmedTitleDraft = titleDraft.trim();
+  const hasPendingTitleChange = Boolean(item && trimmedTitleDraft && trimmedTitleDraft !== currentTitle);
+  const isTitleActionDisabled = isUpdatingTitle || isRefreshingPrice || isSaving || !hasPendingTitleChange;
+
+  async function handleApplyTitleAndRefreshPricing() {
+    if (!id || !item || !trimmedTitleDraft) return;
+    setError(null);
+    setIsRefreshingPrice(true);
+
+    try {
+      const nextDetailAfterTitle = await syncTitleIfNeeded();
+      const manualQuery = trimmedTitleDraft || nextDetailAfterTitle?.inventoryItem?.displayName || currentTitle;
+      const nextDetail = await refreshStoredScanPricing(id, manualQuery ? { query: manualQuery } : undefined);
+      setDetail(nextDetail);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not update title and refresh pricing.");
+    } finally {
+      setIsRefreshingPrice(false);
+    }
+  }
 
   return (
     <SafeAreaView style={{ backgroundColor: "#ffffff", flex: 1 }} edges={["left", "right", "bottom"]}>
@@ -199,7 +221,6 @@ export default function ScanDetailScreen() {
                 autoCapitalize="words"
                 autoCorrect={false}
                 editable={!isSaving && !isRefreshingPrice && !isUpdatingTitle}
-                onBlur={() => void syncTitleIfNeeded()}
                 onChangeText={setTitleDraft}
                 placeholder="Add item title"
                 style={{
@@ -214,17 +235,37 @@ export default function ScanDetailScreen() {
                 }}
                 value={titleDraft}
               />
+              {hasPendingTitleChange ? (
+                <View style={{ alignItems: "center", flexDirection: "row", gap: 10 }}>
+                  <Pressable
+                    disabled={isTitleActionDisabled}
+                    onPress={() => void handleApplyTitleAndRefreshPricing()}
+                    style={({ pressed }) => ({
+                      alignItems: "center",
+                      backgroundColor: isTitleActionDisabled ? "#9ca3af" : pressed ? brandColors.primaryStrong : brandColors.primary,
+                      borderRadius: brandRadii.md,
+                      justifyContent: "center",
+                      minHeight: 44,
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                    })}
+                  >
+                    {isRefreshingPrice ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text style={{ color: "white", fontSize: 15, fontWeight: "800" }}>Update Now</Text>
+                    )}
+                  </Pressable>
+                  <Text selectable style={{ color: "#6b7280", flex: 1, fontSize: 13, lineHeight: 18 }}>
+                    Use this title right away for a fresh marketplace search.
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
           <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
-            <Field label="Brand" value={item?.brand ?? "Unknown"} />
-            <Field label="Model" value={item?.model ?? "Unknown"} />
-            <Field label="Category" value={item?.category ?? "Unknown"} />
-            <Field label="Condition" value={item?.condition ?? "Unknown"} />
-            <Field label="Status" value={scan.recognitionStatus} />
             <Field label="Confidence" value={`${Math.round((scan.recognitionConfidence ?? 0) * 100)}%`} />
-            <Field label="Captured" value={new Date(scan.capturedAt).toLocaleString()} />
           </View>
 
           <PriceCard estimate={estimate} />
@@ -297,62 +338,99 @@ function FlowCard(input: {
   hasIdentity: boolean;
   estimate: PriceEstimate | null | undefined;
 }) {
-  const searchLabel = input.estimate ? formatSourceLabel(input.estimate.sourceType) : "waiting";
+  const steps = [
+    { title: "Capture", state: "done" as const },
+    { title: "Analyze", state: input.hasIdentity ? ("done" as const) : ("pending" as const) },
+    { title: "Search", state: input.estimate ? ("done" as const) : ("pending" as const) },
+  ];
 
   return (
-    <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 12, padding: 14 }}>
-      <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
-        {"Capture -> Analyze -> Search"}
-      </Text>
-      <View style={{ gap: 10 }}>
-        <FlowRow
-          title="Capture"
-          detail={input.scan.imageUri.startsWith("mock://") ? "Mock image fixture captured for testing." : "Photo captured and ready for review."}
-          state="done"
-        />
-        <FlowRow
-          title="Analyze"
-          detail={input.hasIdentity ? "Gemini Nano extracted an item identity from the photo." : "Waiting on recognized brand/model/category."}
-          state={input.hasIdentity ? "done" : "pending"}
-        />
-        <FlowRow
-          title={input.estimate ? "Search" : "Search"}
-          detail={
-            input.estimate
-              ? `Marketplace evidence came back from ${searchLabel}.`
-              : "No marketplace evidence saved yet."
-          }
-          state={input.estimate ? "done" : "pending"}
-        />
+    <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, paddingHorizontal: 14, paddingVertical: 12 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        {steps.map((step, index) => (
+          <FlowStep
+            key={step.title}
+            title={step.title}
+            state={step.state}
+            showConnector={index < steps.length - 1}
+          />
+        ))}
       </View>
+      <Text selectable style={{ color: "#6b7280", fontSize: 12, lineHeight: 17 }}>
+        {input.estimate
+          ? `Marketplace results are in from ${formatSourceLabel(input.estimate.sourceType)}.`
+          : input.hasIdentity
+            ? "Ready to search with the current item title."
+            : "Waiting on a stronger item identity before search."}
+      </Text>
     </View>
   );
 }
 
-function FlowRow(input: { title: string; detail: string; state: "done" | "pending" }) {
+function FlowStep(input: {
+  title: string;
+  state: "done" | "pending";
+  showConnector: boolean;
+}) {
+  const isDone = input.state === "done";
+
   return (
-    <View style={{ flexDirection: "row", gap: 10 }}>
+    <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: "row" }}>
+        <View style={{ alignItems: "center", width: 24 }}>
+          <View
+            style={{
+              alignItems: "center",
+              backgroundColor: isDone ? brandColors.primary : "#e5e7eb",
+              borderRadius: 999,
+              height: 24,
+              justifyContent: "center",
+              width: 24,
+            }}
+          >
+            <Text style={{ color: isDone ? "#ffffff" : "#6b7280", fontSize: 11, fontWeight: "900" }}>
+              {isDone ? "✓" : ""}
+            </Text>
+          </View>
+        </View>
+
+        {input.showConnector ? (
+          <View
+            style={{
+              alignItems: "center",
+              flex: 1,
+              justifyContent: "center",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: isDone ? brandColors.primarySoft : "#e5e7eb",
+                height: 2,
+                width: "100%",
+              }}
+            />
+          </View>
+        ) : null}
+      </View>
+
       <View
         style={{
           alignItems: "center",
-          backgroundColor: input.state === "done" ? "#dcfce7" : "#e5e7eb",
-          borderRadius: 999,
-          height: 22,
-          justifyContent: "center",
-          marginTop: 2,
-          width: 22,
+          paddingTop: 8,
+          width: 24,
         }}
       >
-        <Text style={{ color: input.state === "done" ? "#166534" : "#6b7280", fontSize: 11, fontWeight: "900" }}>
-          {input.state === "done" ? "OK" : "..."}
-        </Text>
-      </View>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text selectable style={{ color: "#111827", fontSize: 14, fontWeight: "800" }}>
+        <Text
+          selectable
+          style={{
+            color: "#4b5563",
+            fontSize: 12,
+            fontWeight: "700",
+            textAlign: "center",
+            width: 64,
+          }}
+        >
           {input.title}
-        </Text>
-        <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
-          {input.detail}
         </Text>
       </View>
     </View>

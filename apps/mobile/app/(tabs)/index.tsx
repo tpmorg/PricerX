@@ -4,7 +4,9 @@ import { Link, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { listSavedItems, type SavedItemSummary } from "@/features/scans/localScanService";
+import { brandColors, brandRadii, brandShadows } from "@/theme/brand";
 
 export default function HomeScreen() {
   const [items, setItems] = useState<SavedItemSummary[]>([]);
@@ -30,40 +32,20 @@ export default function HomeScreen() {
   );
 
   return (
-    <SafeAreaView style={{ backgroundColor: "#f3f4f6", flex: 1 }} edges={["top", "left", "right"]}>
+    <SafeAreaView style={{ backgroundColor: brandColors.canvas, flex: 1 }} edges={["top", "left", "right"]}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ gap: 18, paddingHorizontal: 16, paddingBottom: 32, paddingTop: 10 }}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadItems} tintColor="#111827" />}
+        contentContainerStyle={{ gap: 14, paddingHorizontal: 16, paddingBottom: 32, paddingTop: 8 }}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadItems} tintColor={brandColors.ink} />}
       >
-        <View style={{ gap: 6, paddingHorizontal: 4 }}>
-          <Text selectable style={{ color: "#6b7280", fontSize: 13, fontWeight: "700", textTransform: "uppercase" }}>
-            Pricernu Library
-          </Text>
-          <Text selectable style={{ color: "#111827", fontSize: 30, fontWeight: "800" }}>
-            Saved Items
-          </Text>
-          <Text selectable style={{ color: "#4b5563", lineHeight: 21 }}>
-            Capture something, review the result, then keep the ones worth tracking.
-          </Text>
-        </View>
-
-        {isLoading ? <ActivityIndicator color="#111827" /> : null}
+        {isLoading ? <ActivityIndicator color={brandColors.ink} /> : null}
 
         {error ? (
-          <View
-            style={{
-              backgroundColor: "#fef2f2",
-              borderColor: "#fecaca",
-              borderRadius: 8,
-              borderWidth: 1,
-              padding: 14,
-            }}
-          >
-            <Text selectable style={{ color: "#b91c1c", lineHeight: 20 }}>
+          <SurfaceCard>
+            <Text selectable style={{ color: brandColors.danger, lineHeight: 20 }}>
               {error}
             </Text>
-          </View>
+          </SurfaceCard>
         ) : null}
 
         {!isLoading && items.length === 0 ? <EmptyState /> : null}
@@ -95,37 +77,39 @@ function EmptyState() {
     <View
       style={{
         alignItems: "center",
-        backgroundColor: "#ffffff",
-        borderRadius: 8,
+        backgroundColor: brandColors.surface,
+        borderRadius: brandRadii.lg,
         gap: 12,
         justifyContent: "center",
         minHeight: 220,
         paddingHorizontal: 24,
         paddingVertical: 28,
-        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
+        borderColor: brandColors.line,
+        borderWidth: 1,
+        boxShadow: brandShadows.subtle,
       }}
     >
       <View
         style={{
           alignItems: "center",
-          backgroundColor: "#eef2ff",
+          backgroundColor: brandColors.primarySoft,
           borderRadius: 999,
           height: 56,
           justifyContent: "center",
           width: 56,
         }}
       >
-        <PackageSearch color="#4338ca" size={26} strokeWidth={2.25} />
+        <PackageSearch color={brandColors.primaryStrong} size={26} strokeWidth={2.25} />
       </View>
-      <Text selectable style={{ color: "#111827", fontSize: 22, fontWeight: "800", textAlign: "center" }}>
+      <Text selectable style={{ color: brandColors.ink, fontSize: 22, fontWeight: "800", textAlign: "center" }}>
         Nothing saved yet
       </Text>
-      <Text selectable style={{ color: "#4b5563", lineHeight: 21, textAlign: "center" }}>
+      <Text selectable style={{ color: brandColors.inkMuted, lineHeight: 21, textAlign: "center" }}>
         Your best captures will land here after you save them from the results screen.
       </Text>
       <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
-        <Camera color="#6b7280" size={16} strokeWidth={2.25} />
-        <Text selectable style={{ color: "#6b7280", fontSize: 13, fontWeight: "700" }}>
+        <Camera color={brandColors.inkSoft} size={16} strokeWidth={2.25} />
+        <Text selectable style={{ color: brandColors.inkSoft, fontSize: 13, fontWeight: "700" }}>
           Use the center camera button to start
         </Text>
       </View>
@@ -147,12 +131,11 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
   return (
     <View
       style={{
-        backgroundColor: "#111827",
-        borderRadius: 8,
-        height: isFeatured ? 280 : 236,
+        backgroundColor: brandColors.ink,
+        height: isFeatured ? 228 : 206,
         overflow: "hidden",
         position: "relative",
-        boxShadow: "0 12px 28px rgba(15, 23, 42, 0.16)",
+        boxShadow: brandShadows.floating,
       }}
     >
       <CardBackground uri={uri} />
@@ -161,30 +144,15 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
         pointerEvents="none"
         style={{
           ...absoluteFill,
-          backgroundColor: "rgba(15, 23, 42, 0.22)",
+          backgroundColor: "rgba(17, 27, 38, 0.08)",
         }}
       />
-      <View
-        pointerEvents="none"
-        style={{
-          ...absoluteFill,
-          backgroundColor: "rgba(15, 23, 42, 0.18)",
-          justifyContent: "flex-end",
-        }}
-      >
-        <View
-          style={{
-            height: "62%",
-            backgroundColor: "rgba(15, 23, 42, 0.82)",
-          }}
-        />
-      </View>
 
       <View
         style={{
           ...absoluteFill,
           justifyContent: "space-between",
-          padding: 14,
+          padding: 12,
         }}
       >
         <View style={{ alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" }}>
@@ -195,42 +163,64 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
           <View
             style={{
               alignItems: "center",
-              backgroundColor: "rgba(255,255,255,0.16)",
+              backgroundColor: "rgba(255,255,255,0.24)",
               borderRadius: 999,
-              height: 34,
+              height: 30,
               justifyContent: "center",
-              width: 34,
+              width: 30,
             }}
           >
-            <ArrowUpRight color="#ffffff" size={16} strokeWidth={2.5} />
+            <ArrowUpRight color="#ffffff" size={15} strokeWidth={2.25} />
           </View>
         </View>
 
-        <View style={{ gap: 10 }}>
-          {estimate ? (
-            <View style={{ alignItems: "flex-start" }}>
-              <View
+        <View
+          style={{
+            alignSelf: "stretch",
+            backgroundColor: "rgba(255,255,255,0.92)",
+            gap: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ alignItems: "flex-start", flexDirection: "row", gap: 10, justifyContent: "space-between" }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text
+                selectable
+                numberOfLines={2}
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.92)",
-                  borderRadius: 999,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
+                  color: brandColors.ink,
+                  fontSize: isFeatured ? 18 : 17,
+                  fontWeight: "700",
+                  lineHeight: isFeatured ? 22 : 21,
                 }}
               >
-                <Text selectable style={{ color: "#111827", fontSize: 15, fontVariant: ["tabular-nums"], fontWeight: "900" }}>
+                {title}
+              </Text>
+              {subtitle !== "Saved item" ? (
+                <Text selectable numberOfLines={1} style={{ color: brandColors.inkMuted, fontSize: 12, fontWeight: "500", lineHeight: 16 }}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+
+            {estimate ? (
+              <View
+                style={{
+                  backgroundColor: brandColors.surface,
+                  borderColor: brandColors.line,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  flexShrink: 0,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                }}
+              >
+                <Text selectable style={{ color: brandColors.ink, fontSize: 13, fontVariant: ["tabular-nums"], fontWeight: "800" }}>
                   {formatRange(estimate)}
                 </Text>
               </View>
-            </View>
-          ) : null}
-
-          <View style={{ gap: 4 }}>
-            <Text selectable numberOfLines={2} style={{ color: "#ffffff", fontSize: isFeatured ? 25 : 22, fontWeight: "800", lineHeight: isFeatured ? 30 : 27 }}>
-              {title}
-            </Text>
-            <Text selectable numberOfLines={2} style={{ color: "rgba(255,255,255,0.82)", lineHeight: 20 }}>
-              {subtitle}
-            </Text>
+            ) : null}
           </View>
         </View>
       </View>
@@ -242,8 +232,8 @@ function CardBackground({ uri }: { uri: string | undefined }) {
   if (!uri) {
     return (
       <View style={{ ...absoluteFill, alignItems: "center", backgroundColor: "#dbe4ea", gap: 10, justifyContent: "center" }}>
-        <ImageIcon color="#64748b" size={26} strokeWidth={2.25} />
-        <Text selectable style={{ color: "#475569", fontSize: 13, fontWeight: "700" }}>
+        <ImageIcon color={brandColors.inkSoft} size={26} strokeWidth={2.25} />
+        <Text selectable style={{ color: brandColors.inkMuted, fontSize: 13, fontWeight: "700" }}>
           No photo
         </Text>
       </View>
@@ -253,8 +243,8 @@ function CardBackground({ uri }: { uri: string | undefined }) {
   if (uri.startsWith("mock://")) {
     return (
       <View style={{ ...absoluteFill, alignItems: "center", backgroundColor: "#dbe4ea", gap: 10, justifyContent: "center" }}>
-        <Tags color="#475569" size={24} strokeWidth={2.25} />
-        <Text selectable style={{ color: "#475569", fontSize: 13, fontWeight: "700" }}>
+        <Tags color={brandColors.inkMuted} size={24} strokeWidth={2.25} />
+        <Text selectable style={{ color: brandColors.inkMuted, fontSize: 13, fontWeight: "700" }}>
           Mock capture
         </Text>
       </View>
@@ -268,13 +258,13 @@ function OverlayPill({ label, tone }: { label: string; tone: "primary" | "neutra
   return (
     <View
       style={{
-        backgroundColor: tone === "primary" ? "rgba(129, 140, 248, 0.92)" : "rgba(15, 23, 42, 0.48)",
+        backgroundColor: tone === "primary" ? brandColors.primary : "rgba(17, 27, 38, 0.52)",
         borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 5,
       }}
     >
-      <Text selectable style={{ color: "#ffffff", fontSize: 12, fontWeight: "800" }}>
+      <Text selectable style={{ color: "#ffffff", fontSize: 11, fontWeight: "800" }}>
         {label}
       </Text>
     </View>
