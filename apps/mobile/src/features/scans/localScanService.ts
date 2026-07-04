@@ -46,8 +46,12 @@ export async function importStoredScanFromLibrary(): Promise<StoredScanDetail> {
   return createStagedScanFromImage(imageUri, "library-scan-request");
 }
 
-export async function refreshStoredScanPricing(id: string): Promise<StoredScanDetail | null> {
+export async function refreshStoredScanPricing(
+  id: string,
+  input?: { query?: string },
+): Promise<StoredScanDetail | null> {
   await initializeLocalStorage();
+  const manualQuery = input?.query?.trim();
 
   const staged = stagedScans.get(id);
   if (staged) {
@@ -65,6 +69,7 @@ export async function refreshStoredScanPricing(id: string): Promise<StoredScanDe
     const { estimate } = await lookupPriceForInventoryItem({
       inventoryItem,
       identity,
+      ...(manualQuery ? { query: manualQuery } : {}),
       forceRefresh: true,
       persistResult: false,
     });
@@ -115,6 +120,7 @@ export async function refreshStoredScanPricing(id: string): Promise<StoredScanDe
   const { estimate } = await lookupPriceForInventoryItem({
     inventoryItem,
     identity,
+    ...(manualQuery ? { query: manualQuery } : {}),
     forceRefresh: true,
   });
 
@@ -193,6 +199,53 @@ export async function getStoredScanDetail(id: string): Promise<StoredScanDetail 
     ocrRecords: await localRepositories.ocrRecords.listForScan(scan.id),
     isSaved: true,
   };
+}
+
+export async function updateStoredScanTitle(id: string, nextTitle: string): Promise<StoredScanDetail | null> {
+  await initializeLocalStorage();
+
+  const trimmedTitle = nextTitle.trim();
+  if (!trimmedTitle) {
+    return getStoredScanDetail(id);
+  }
+
+  const staged = stagedScans.get(id);
+  if (staged) {
+    const inventoryItem = staged.detail.inventoryItem;
+    if (!inventoryItem || inventoryItem.displayName === trimmedTitle) {
+      return staged.detail;
+    }
+
+    const nextDetail = {
+      ...staged.detail,
+      inventoryItem: {
+        ...inventoryItem,
+        displayName: trimmedTitle,
+        updatedAt: new Date().toISOString(),
+      },
+    } satisfies StoredScanDetail;
+
+    stagedScans.set(id, { detail: nextDetail });
+    return nextDetail;
+  }
+
+  const scan = await localRepositories.scans.getById(id);
+  if (!scan?.inventoryItemId) {
+    return getStoredScanDetail(id);
+  }
+
+  const inventoryItem = await localRepositories.inventoryItems.getById(scan.inventoryItemId);
+  if (!inventoryItem || inventoryItem.displayName === trimmedTitle) {
+    return getStoredScanDetail(id);
+  }
+
+  await localRepositories.inventoryItems.update({
+    ...inventoryItem,
+    displayName: trimmedTitle,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return getStoredScanDetail(id);
 }
 
 export async function deleteScan(id: string): Promise<void> {

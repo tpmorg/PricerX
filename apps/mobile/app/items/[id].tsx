@@ -1,7 +1,7 @@
 import type { PriceEstimate } from "@pricernu/shared";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
 import {
@@ -10,6 +10,7 @@ import {
   refreshStoredScanPricing,
   saveStoredScan,
   type StoredScanDetail,
+  updateStoredScanTitle,
 } from "@/features/scans/localScanService";
 
 export default function ScanDetailScreen() {
@@ -19,7 +20,9 @@ export default function ScanDetailScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRefreshingPrice, setIsRefreshingPrice] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
   const pricingProvider = getPricingProviderStatus();
 
   const loadScan = useCallback(async () => {
@@ -41,6 +44,35 @@ export default function ScanDetailScreen() {
     }, [loadScan]),
   );
 
+  useEffect(() => {
+    setTitleDraft(detail?.inventoryItem?.displayName ?? "");
+  }, [detail?.inventoryItem?.displayName]);
+
+  async function syncTitleIfNeeded(): Promise<StoredScanDetail | null> {
+    if (!id || !detail?.inventoryItem) return detail;
+
+    const trimmedTitle = titleDraft.trim();
+    const currentTitle = detail.inventoryItem.displayName;
+    if (!trimmedTitle) {
+      setTitleDraft(currentTitle);
+      return detail;
+    }
+    if (trimmedTitle === currentTitle) {
+      return detail;
+    }
+
+    setIsUpdatingTitle(true);
+    try {
+      const nextDetail = await updateStoredScanTitle(id, trimmedTitle);
+      if (nextDetail) {
+        setDetail(nextDetail);
+      }
+      return nextDetail;
+    } finally {
+      setIsUpdatingTitle(false);
+    }
+  }
+
   async function handleDelete() {
     if (!id) return;
     setIsDeleting(true);
@@ -61,7 +93,10 @@ export default function ScanDetailScreen() {
     setError(null);
 
     try {
-      const nextDetail = await refreshStoredScanPricing(id);
+      const nextDetailAfterTitle = await syncTitleIfNeeded();
+      const fallbackQuery = nextDetailAfterTitle?.inventoryItem?.displayName ?? detail?.inventoryItem?.displayName ?? "";
+      const manualQuery = titleDraft.trim() || fallbackQuery.trim();
+      const nextDetail = await refreshStoredScanPricing(id, manualQuery ? { query: manualQuery } : undefined);
       setDetail(nextDetail);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not refresh pricing.");
@@ -76,6 +111,7 @@ export default function ScanDetailScreen() {
     setError(null);
 
     try {
+      await syncTitleIfNeeded();
       const nextDetail = await saveStoredScan(id);
       setDetail(nextDetail);
     } catch (caught) {
@@ -151,6 +187,36 @@ export default function ScanDetailScreen() {
             </View>
           ) : null}
 
+          {item ? (
+            <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
+              <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
+                Exact item title
+              </Text>
+              <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+                If the AI only found something generic, tell us exactly what it is here. We will use this title for marketplace search.
+              </Text>
+              <TextInput
+                autoCapitalize="words"
+                autoCorrect={false}
+                editable={!isSaving && !isRefreshingPrice && !isUpdatingTitle}
+                onBlur={() => void syncTitleIfNeeded()}
+                onChangeText={setTitleDraft}
+                placeholder="Add item title"
+                style={{
+                  backgroundColor: "white",
+                  borderColor: "#d1d5db",
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  color: "#111827",
+                  fontSize: 16,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                }}
+                value={titleDraft}
+              />
+            </View>
+          ) : null}
+
           <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
             <Field label="Brand" value={item?.brand ?? "Unknown"} />
             <Field label="Model" value={item?.model ?? "Unknown"} />
@@ -197,7 +263,9 @@ export default function ScanDetailScreen() {
               <ActivityIndicator color="white" />
             ) : (
               <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>
-                {pricingProvider.mode === "convex_marketplace" ? "Search Marketplaces Again" : "Re-run Local Pricing"}
+                {pricingProvider.mode === "convex_marketplace"
+                  ? "Search Using This Title"
+                  : "Re-run Local Pricing"}
               </Text>
             )}
           </Pressable>
