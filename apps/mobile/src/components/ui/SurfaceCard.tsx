@@ -1,19 +1,21 @@
 import { View } from "react-native";
-import { brandColors, brandRadii, brandShadows } from "@/theme/brand";
+import { useTheme } from "@/theme";
 
 export function SurfaceCard(input: {
   children: React.ReactNode;
   muted?: boolean;
   padded?: boolean;
 }) {
+  const theme = useTheme();
+
   return (
     <View
       style={{
-        backgroundColor: input.muted ? brandColors.surfaceMuted : brandColors.surface,
-        borderColor: brandColors.line,
-        borderRadius: brandRadii.lg,
+        backgroundColor: input.muted ? theme.colors.surfaceMuted : theme.colors.surface,
+        borderColor: theme.colors.border,
+        borderRadius: theme.radii.lg,
         borderWidth: 1,
-        boxShadow: brandShadows.subtle,
+        boxShadow: theme.shadows.subtle,
         gap: 12,
         padding: input.padded === false ? 0 : 16,
       }}

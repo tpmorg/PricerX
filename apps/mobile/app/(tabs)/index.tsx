@@ -6,9 +6,10 @@ import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, Text, 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { listSavedItems, type SavedItemSummary } from "@/features/scans/localScanService";
-import { brandColors, brandRadii, brandShadows } from "@/theme/brand";
+import { useTheme } from "@/theme";
 
 export default function HomeScreen() {
+  const theme = useTheme();
   const [items, setItems] = useState<SavedItemSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,17 +33,17 @@ export default function HomeScreen() {
   );
 
   return (
-    <SafeAreaView style={{ backgroundColor: brandColors.canvas, flex: 1 }} edges={["top", "left", "right"]}>
+    <SafeAreaView style={{ backgroundColor: theme.colors.background, flex: 1 }} edges={["top", "left", "right"]}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ gap: 14, paddingHorizontal: 16, paddingBottom: 32, paddingTop: 8 }}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadItems} tintColor={brandColors.ink} />}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadItems} tintColor={theme.colors.text} />}
       >
-        {isLoading ? <ActivityIndicator color={brandColors.ink} /> : null}
+        {isLoading ? <ActivityIndicator color={theme.colors.text} /> : null}
 
         {error ? (
           <SurfaceCard>
-            <Text selectable style={{ color: brandColors.danger, lineHeight: 20 }}>
+            <Text selectable style={{ color: theme.colors.danger, lineHeight: 20 }}>
               {error}
             </Text>
           </SurfaceCard>
@@ -73,43 +74,45 @@ export default function HomeScreen() {
 }
 
 function EmptyState() {
+  const theme = useTheme();
+
   return (
     <View
       style={{
         alignItems: "center",
-        backgroundColor: brandColors.surface,
-        borderRadius: brandRadii.lg,
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.radii.lg,
         gap: 12,
         justifyContent: "center",
         minHeight: 220,
         paddingHorizontal: 24,
         paddingVertical: 28,
-        borderColor: brandColors.line,
+        borderColor: theme.colors.border,
         borderWidth: 1,
-        boxShadow: brandShadows.subtle,
+        boxShadow: theme.shadows.subtle,
       }}
     >
       <View
         style={{
           alignItems: "center",
-          backgroundColor: brandColors.primarySoft,
+          backgroundColor: theme.colors.primarySoft,
           borderRadius: 999,
           height: 56,
           justifyContent: "center",
           width: 56,
         }}
       >
-        <PackageSearch color={brandColors.primaryStrong} size={26} strokeWidth={2.25} />
+        <PackageSearch color={theme.colors.primaryStrong} size={26} strokeWidth={2.25} />
       </View>
-      <Text selectable style={{ color: brandColors.ink, fontSize: 22, fontWeight: "800", textAlign: "center" }}>
+      <Text selectable style={{ color: theme.colors.text, fontSize: 22, fontWeight: "800", textAlign: "center" }}>
         Nothing saved yet
       </Text>
-      <Text selectable style={{ color: brandColors.inkMuted, lineHeight: 21, textAlign: "center" }}>
+      <Text selectable style={{ color: theme.colors.textMuted, lineHeight: 21, textAlign: "center" }}>
         Your best captures will land here after you save them from the results screen.
       </Text>
       <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
-        <Camera color={brandColors.inkSoft} size={16} strokeWidth={2.25} />
-        <Text selectable style={{ color: brandColors.inkSoft, fontSize: 13, fontWeight: "700" }}>
+        <Camera color={theme.colors.textSoft} size={16} strokeWidth={2.25} />
+        <Text selectable style={{ color: theme.colors.textSoft, fontSize: 13, fontWeight: "700" }}>
           Use the center camera button to start
         </Text>
       </View>
@@ -118,8 +121,10 @@ function EmptyState() {
 }
 
 function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeatured: boolean }) {
+  const theme = useTheme();
   const uri = item.primaryPhoto?.imageUri ?? item.latestScan?.imageUri;
   const estimate = item.latestPriceEstimate;
+  const providerMix = getEstimateProviderMixLabel(estimate);
   const title = item.inventoryItem.displayName;
   const subtitle = buildItemSubtitle(item);
   const timestamp = new Date((item.latestScan ?? item.inventoryItem).updatedAt ?? item.inventoryItem.updatedAt).toLocaleDateString(undefined, {
@@ -131,11 +136,11 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
   return (
     <View
       style={{
-        backgroundColor: brandColors.ink,
+        backgroundColor: theme.colors.surfaceInverse,
         height: isFeatured ? 228 : 206,
         overflow: "hidden",
         position: "relative",
-        boxShadow: brandShadows.floating,
+        boxShadow: theme.shadows.floating,
       }}
     >
       <CardBackground uri={uri} />
@@ -144,7 +149,7 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
         pointerEvents="none"
         style={{
           ...absoluteFill,
-          backgroundColor: "rgba(17, 27, 38, 0.08)",
+          backgroundColor: theme.colors.overlayTint,
         }}
       />
 
@@ -157,27 +162,27 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
       >
         <View style={{ alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" }}>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, maxWidth: "84%" }}>
-            <OverlayPill label={formatSourceBadge(estimate)} tone="primary" />
+            <OverlayPill label={providerMix} tone="primary" />
             <OverlayPill label={timestamp} tone="neutral" />
           </View>
           <View
             style={{
               alignItems: "center",
-              backgroundColor: "rgba(255,255,255,0.24)",
+              backgroundColor: theme.colors.overlayInverseMuted,
               borderRadius: 999,
               height: 30,
               justifyContent: "center",
               width: 30,
             }}
           >
-            <ArrowUpRight color="#ffffff" size={15} strokeWidth={2.25} />
+            <ArrowUpRight color={theme.colors.textInverse} size={15} strokeWidth={2.25} />
           </View>
         </View>
 
         <View
           style={{
             alignSelf: "stretch",
-            backgroundColor: "rgba(255,255,255,0.92)",
+            backgroundColor: theme.colors.overlayInversePanel,
             gap: 8,
             paddingHorizontal: 12,
             paddingVertical: 10,
@@ -189,7 +194,7 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
                 selectable
                 numberOfLines={2}
                 style={{
-                  color: brandColors.ink,
+                  color: theme.colors.text,
                   fontSize: isFeatured ? 18 : 17,
                   fontWeight: "700",
                   lineHeight: isFeatured ? 22 : 21,
@@ -198,7 +203,7 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
                 {title}
               </Text>
               {subtitle !== "Saved item" ? (
-                <Text selectable numberOfLines={1} style={{ color: brandColors.inkMuted, fontSize: 12, fontWeight: "500", lineHeight: 16 }}>
+                <Text selectable numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "500", lineHeight: 16 }}>
                   {subtitle}
                 </Text>
               ) : null}
@@ -207,8 +212,8 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
             {estimate ? (
               <View
                 style={{
-                  backgroundColor: brandColors.surface,
-                  borderColor: brandColors.line,
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
                   borderRadius: 999,
                   borderWidth: 1,
                   flexShrink: 0,
@@ -216,7 +221,7 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
                   paddingVertical: 6,
                 }}
               >
-                <Text selectable style={{ color: brandColors.ink, fontSize: 13, fontVariant: ["tabular-nums"], fontWeight: "800" }}>
+                <Text selectable style={{ color: theme.colors.text, fontSize: 13, fontVariant: ["tabular-nums"], fontWeight: "800" }}>
                   {formatRange(estimate)}
                 </Text>
               </View>
@@ -229,11 +234,13 @@ function SavedItemCard({ item, isFeatured }: { item: SavedItemSummary; isFeature
 }
 
 function CardBackground({ uri }: { uri: string | undefined }) {
+  const theme = useTheme();
+
   if (!uri) {
     return (
-      <View style={{ ...absoluteFill, alignItems: "center", backgroundColor: "#dbe4ea", gap: 10, justifyContent: "center" }}>
-        <ImageIcon color={brandColors.inkSoft} size={26} strokeWidth={2.25} />
-        <Text selectable style={{ color: brandColors.inkMuted, fontSize: 13, fontWeight: "700" }}>
+      <View style={{ ...absoluteFill, alignItems: "center", backgroundColor: theme.colors.imageFallback, gap: 10, justifyContent: "center" }}>
+        <ImageIcon color={theme.colors.textSoft} size={26} strokeWidth={2.25} />
+        <Text selectable style={{ color: theme.colors.textMuted, fontSize: 13, fontWeight: "700" }}>
           No photo
         </Text>
       </View>
@@ -242,9 +249,9 @@ function CardBackground({ uri }: { uri: string | undefined }) {
 
   if (uri.startsWith("mock://")) {
     return (
-      <View style={{ ...absoluteFill, alignItems: "center", backgroundColor: "#dbe4ea", gap: 10, justifyContent: "center" }}>
-        <Tags color={brandColors.inkMuted} size={24} strokeWidth={2.25} />
-        <Text selectable style={{ color: brandColors.inkMuted, fontSize: 13, fontWeight: "700" }}>
+      <View style={{ ...absoluteFill, alignItems: "center", backgroundColor: theme.colors.imageFallback, gap: 10, justifyContent: "center" }}>
+        <Tags color={theme.colors.textMuted} size={24} strokeWidth={2.25} />
+        <Text selectable style={{ color: theme.colors.textMuted, fontSize: 13, fontWeight: "700" }}>
           Mock capture
         </Text>
       </View>
@@ -255,16 +262,18 @@ function CardBackground({ uri }: { uri: string | undefined }) {
 }
 
 function OverlayPill({ label, tone }: { label: string; tone: "primary" | "neutral" }) {
+  const theme = useTheme();
+
   return (
     <View
       style={{
-        backgroundColor: tone === "primary" ? brandColors.primary : "rgba(17, 27, 38, 0.52)",
+        backgroundColor: tone === "primary" ? theme.colors.primary : theme.colors.neutralOverlay,
         borderRadius: 999,
         paddingHorizontal: 8,
         paddingVertical: 5,
       }}
     >
-      <Text selectable style={{ color: "#ffffff", fontSize: 11, fontWeight: "800" }}>
+      <Text selectable style={{ color: theme.colors.textInverse, fontSize: 11, fontWeight: "800" }}>
         {label}
       </Text>
     </View>
@@ -279,6 +288,54 @@ function buildItemSubtitle(item: SavedItemSummary): string {
 function formatSourceBadge(estimate: PriceEstimate | null): string {
   if (!estimate) return "No price";
   return formatSourceLabel(estimate.sourceType);
+}
+
+function getEstimateProviderMixLabel(estimate: PriceEstimate | null): string {
+  if (!estimate) return "No price";
+  const providers = extractStructuredProviders(estimate);
+  if (providers.length === 0) return formatSourceBadge(estimate);
+  if (providers.length === 1) return providers[0] ?? formatSourceBadge(estimate);
+  if (providers.length === 2) return `${providers[0]} + ${providers[1]}`;
+  return `${providers[0]} + ${providers.length - 1} more`;
+}
+
+function extractStructuredProviders(estimate: PriceEstimate): string[] {
+  if (!estimate.rawEvidenceJson) return [];
+
+  try {
+    const parsed = JSON.parse(estimate.rawEvidenceJson) as {
+      estimateRawEvidenceJson?: string;
+      sources?: Array<{ sourceType?: string }>;
+      providerAttempts?: Array<{ status?: string; sourceType?: string }>;
+    };
+    const providerPayload = parsed.estimateRawEvidenceJson
+      ? JSON.parse(parsed.estimateRawEvidenceJson) as {
+          sources?: Array<{ sourceType?: string }>;
+          providerAttempts?: Array<{ status?: string; sourceType?: string }>;
+        }
+      : parsed;
+
+    const labels = new Set<string>();
+
+    providerPayload.sources?.forEach((source) => {
+      if (source.sourceType === "reverb_listing" || source.sourceType === "ebay_browse" || source.sourceType === "pricecharting") {
+        labels.add(formatSourceLabel(source.sourceType));
+      }
+    });
+
+    providerPayload.providerAttempts?.forEach((attempt) => {
+      if (
+        attempt.status === "success"
+        && (attempt.sourceType === "reverb_listing" || attempt.sourceType === "ebay_browse" || attempt.sourceType === "pricecharting")
+      ) {
+        labels.add(formatSourceLabel(attempt.sourceType));
+      }
+    });
+
+    return Array.from(labels);
+  } catch {
+    return [];
+  }
 }
 
 function formatRange(estimate: PriceEstimate): string {

@@ -3,7 +3,7 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { brandColors, brandRadii } from "@/theme/brand";
+import { useTheme } from "@/theme";
 import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
 import {
   deleteScan,
@@ -15,6 +15,7 @@ import {
 } from "@/features/scans/localScanService";
 
 export default function ScanDetailScreen() {
+  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [detail, setDetail] = useState<StoredScanDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -148,18 +149,18 @@ export default function ScanDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={{ backgroundColor: "#ffffff", flex: 1 }} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={{ backgroundColor: theme.colors.surface, flex: 1 }} edges={["left", "right", "bottom"]}>
       <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 32 }}>
       {isLoading ? <ActivityIndicator /> : null}
 
       {error ? (
-        <Text selectable style={{ color: "#b91c1c", lineHeight: 20 }}>
+        <Text selectable style={{ color: theme.colors.danger, lineHeight: 20 }}>
           {error}
         </Text>
       ) : null}
 
       {!isLoading && !detail ? (
-        <Text selectable style={{ color: "#4b5563", fontSize: 16 }}>
+        <Text selectable style={{ color: theme.colors.textMuted, fontSize: 16 }}>
           Scan not found.
         </Text>
       ) : null}
@@ -170,7 +171,7 @@ export default function ScanDetailScreen() {
             <Text selectable style={{ fontSize: 28, fontWeight: "800" }}>
               {item?.displayName ?? scan.ocrText ?? "Local scan"}
             </Text>
-            <Text selectable style={{ color: "#4b5563", fontSize: 16, lineHeight: 22 }}>
+            <Text selectable style={{ color: theme.colors.textMuted, fontSize: 16, lineHeight: 22 }}>
               {estimate ? `${formatRange(estimate)} from ${formatSourceLabel(estimate.sourceType)}` : "Ready to search marketplace evidence."}
             </Text>
           </View>
@@ -180,41 +181,41 @@ export default function ScanDetailScreen() {
               style={{
                 alignItems: "center",
                 aspectRatio: 4 / 3,
-                backgroundColor: "#e5e7eb",
+                backgroundColor: theme.colors.neutralSurfaceStrong,
                 borderRadius: 8,
                 justifyContent: "center",
               }}
             >
-              <Text selectable style={{ color: "#4b5563", fontSize: 16, fontWeight: "600" }}>
+              <Text selectable style={{ color: theme.colors.textMuted, fontSize: 16, fontWeight: "600" }}>
                 Mock image placeholder
               </Text>
             </View>
           ) : (
             <Image
               source={{ uri: scan.imageUri }}
-              style={{ aspectRatio: 4 / 3, backgroundColor: "#e5e7eb", borderRadius: 8, width: "100%" }}
+              style={{ aspectRatio: 4 / 3, backgroundColor: theme.colors.neutralSurfaceStrong, borderRadius: 8, width: "100%" }}
             />
           )}
 
           <FlowCard scan={scan} hasIdentity={Boolean(item)} estimate={estimate} />
 
           {!detail.isSaved ? (
-            <View style={{ backgroundColor: "#eff6ff", borderColor: "#bfdbfe", borderRadius: 8, borderWidth: 1, gap: 8, padding: 14 }}>
-              <Text selectable style={{ color: "#1d4ed8", fontSize: 16, fontWeight: "800" }}>
+            <View style={{ backgroundColor: theme.colors.infoSoft, borderColor: theme.colors.infoBorder, borderRadius: 8, borderWidth: 1, gap: 8, padding: 14 }}>
+              <Text selectable style={{ color: theme.colors.info, fontSize: 16, fontWeight: "800" }}>
                 Unsaved result
               </Text>
-              <Text selectable style={{ color: "#1e3a8a", lineHeight: 20 }}>
+              <Text selectable style={{ color: theme.colors.infoStrong, lineHeight: 20 }}>
                 This photo and its analysis are staged only. Nothing has been written to the local database yet.
               </Text>
             </View>
           ) : null}
 
           {item ? (
-            <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
+            <View style={{ backgroundColor: theme.colors.neutralSurface, borderColor: theme.colors.neutralBorder, borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
               <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
                 Exact item title
               </Text>
-              <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+              <Text selectable style={{ color: theme.colors.textMuted, lineHeight: 20 }}>
                 If the AI only found something generic, tell us exactly what it is here. We will use this title for marketplace search.
               </Text>
               <TextInput
@@ -224,11 +225,11 @@ export default function ScanDetailScreen() {
                 onChangeText={setTitleDraft}
                 placeholder="Add item title"
                 style={{
-                  backgroundColor: "white",
-                  borderColor: "#d1d5db",
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.neutralBorder,
                   borderRadius: 8,
                   borderWidth: 1,
-                  color: "#111827",
+                  color: theme.colors.neutralStrong,
                   fontSize: 16,
                   paddingHorizontal: 12,
                   paddingVertical: 12,
@@ -242,8 +243,8 @@ export default function ScanDetailScreen() {
                     onPress={() => void handleApplyTitleAndRefreshPricing()}
                     style={({ pressed }) => ({
                       alignItems: "center",
-                      backgroundColor: isTitleActionDisabled ? "#9ca3af" : pressed ? brandColors.primaryStrong : brandColors.primary,
-                      borderRadius: brandRadii.md,
+                      backgroundColor: isTitleActionDisabled ? theme.colors.disabled : pressed ? theme.colors.primaryStrong : theme.colors.primary,
+                      borderRadius: theme.radii.md,
                       justifyContent: "center",
                       minHeight: 44,
                       paddingHorizontal: 14,
@@ -251,12 +252,12 @@ export default function ScanDetailScreen() {
                     })}
                   >
                     {isRefreshingPrice ? (
-                      <ActivityIndicator color="white" />
+                      <ActivityIndicator color={theme.colors.textInverse} />
                     ) : (
-                      <Text style={{ color: "white", fontSize: 15, fontWeight: "800" }}>Update Now</Text>
+                      <Text style={{ color: theme.colors.textInverse, fontSize: 15, fontWeight: "800" }}>Update Now</Text>
                     )}
                   </Pressable>
-                  <Text selectable style={{ color: "#6b7280", flex: 1, fontSize: 13, lineHeight: 18 }}>
+                  <Text selectable style={{ color: theme.colors.textSoft, flex: 1, fontSize: 13, lineHeight: 18 }}>
                     Use this title right away for a fresh marketplace search.
                   </Text>
                 </View>
@@ -264,7 +265,7 @@ export default function ScanDetailScreen() {
             </View>
           ) : null}
 
-          <View style={{ backgroundColor: "#f8fafc", borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
+          <View style={{ backgroundColor: theme.colors.neutralSurface, borderColor: theme.colors.neutralBorder, borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
             <Field label="Confidence" value={`${Math.round((scan.recognitionConfidence ?? 0) * 100)}%`} />
           </View>
 
@@ -274,18 +275,18 @@ export default function ScanDetailScreen() {
           {!detail.isSaved ? (
             <Pressable
               disabled={isSaving}
-              onPress={() => void handleSave()}
-              style={({ pressed }) => ({
-                alignItems: "center",
-                backgroundColor: isSaving ? "#9ca3af" : pressed ? "#111827" : "#0f172a",
-                borderRadius: 8,
-                padding: 14,
-              })}
+            onPress={() => void handleSave()}
+            style={({ pressed }) => ({
+              alignItems: "center",
+              backgroundColor: isSaving ? theme.colors.disabled : pressed ? theme.colors.neutralStrong : theme.colors.neutralStrong,
+              borderRadius: 8,
+              padding: 14,
+            })}
             >
               {isSaving ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color={theme.colors.textInverse} />
               ) : (
-                <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>Save to Local Database</Text>
+                <Text style={{ color: theme.colors.textInverse, fontSize: 16, fontWeight: "700" }}>Save to Local Database</Text>
               )}
             </Pressable>
           ) : null}
@@ -295,15 +296,15 @@ export default function ScanDetailScreen() {
             onPress={() => void handleRefreshPricing()}
             style={({ pressed }) => ({
               alignItems: "center",
-              backgroundColor: isRefreshingPrice ? "#9ca3af" : pressed ? "#111827" : "#0f172a",
+              backgroundColor: isRefreshingPrice ? theme.colors.disabled : pressed ? theme.colors.neutralStrong : theme.colors.neutralStrong,
               borderRadius: 8,
               padding: 14,
             })}
           >
             {isRefreshingPrice ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={theme.colors.textInverse} />
             ) : (
-              <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>
+              <Text style={{ color: theme.colors.textInverse, fontSize: 16, fontWeight: "700" }}>
                 {pricingProvider.mode === "convex_marketplace"
                   ? "Search Using This Title"
                   : "Re-run Local Pricing"}
@@ -316,13 +317,13 @@ export default function ScanDetailScreen() {
             onPress={handleDelete}
             style={({ pressed }) => ({
               alignItems: "center",
-              borderColor: pressed ? "#991b1b" : "#dc2626",
+              borderColor: pressed ? theme.colors.dangerStrong : theme.colors.danger,
               borderRadius: 8,
               borderWidth: 1,
               padding: 14,
             })}
           >
-            <Text style={{ color: "#dc2626", fontSize: 16, fontWeight: "700" }}>
+            <Text style={{ color: theme.colors.danger, fontSize: 16, fontWeight: "700" }}>
               {isDeleting ? (detail?.isSaved ? "Deleting..." : "Discarding...") : detail?.isSaved ? "Delete Local Scan" : "Discard Result"}
             </Text>
           </Pressable>
@@ -338,6 +339,9 @@ function FlowCard(input: {
   hasIdentity: boolean;
   estimate: PriceEstimate | null | undefined;
 }) {
+  const theme = useTheme();
+  const evidence = parsePricingEvidence(input.estimate);
+  const providerMixLabel = formatProviderMixLabel(input.estimate, evidence);
   const steps = [
     { title: "Capture", state: "done" as const },
     { title: "Analyze", state: input.hasIdentity ? ("done" as const) : ("pending" as const) },
@@ -345,7 +349,7 @@ function FlowCard(input: {
   ];
 
   return (
-    <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 10, paddingHorizontal: 14, paddingVertical: 12 }}>
+    <View style={{ borderColor: theme.colors.neutralBorder, borderRadius: 8, borderWidth: 1, gap: 10, paddingHorizontal: 14, paddingVertical: 12 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         {steps.map((step, index) => (
           <FlowStep
@@ -356,9 +360,9 @@ function FlowCard(input: {
           />
         ))}
       </View>
-      <Text selectable style={{ color: "#6b7280", fontSize: 12, lineHeight: 17 }}>
+      <Text selectable style={{ color: theme.colors.textSoft, fontSize: 12, lineHeight: 17 }}>
         {input.estimate
-          ? `Marketplace results are in from ${formatSourceLabel(input.estimate.sourceType)}.`
+          ? `Marketplace results are in from ${providerMixLabel}.`
           : input.hasIdentity
             ? "Ready to search with the current item title."
             : "Waiting on a stronger item identity before search."}
@@ -372,6 +376,7 @@ function FlowStep(input: {
   state: "done" | "pending";
   showConnector: boolean;
 }) {
+  const theme = useTheme();
   const isDone = input.state === "done";
 
   return (
@@ -381,14 +386,14 @@ function FlowStep(input: {
           <View
             style={{
               alignItems: "center",
-              backgroundColor: isDone ? brandColors.primary : "#e5e7eb",
+              backgroundColor: isDone ? theme.colors.primary : theme.colors.neutralSurfaceStrong,
               borderRadius: 999,
               height: 24,
               justifyContent: "center",
               width: 24,
             }}
           >
-            <Text style={{ color: isDone ? "#ffffff" : "#6b7280", fontSize: 11, fontWeight: "900" }}>
+            <Text style={{ color: isDone ? theme.colors.textInverse : theme.colors.textSoft, fontSize: 11, fontWeight: "900" }}>
               {isDone ? "✓" : ""}
             </Text>
           </View>
@@ -404,7 +409,7 @@ function FlowStep(input: {
           >
             <View
               style={{
-                backgroundColor: isDone ? brandColors.primarySoft : "#e5e7eb",
+                backgroundColor: isDone ? theme.colors.primarySoft : theme.colors.neutralSurfaceStrong,
                 height: 2,
                 width: "100%",
               }}
@@ -423,7 +428,7 @@ function FlowStep(input: {
         <Text
           selectable
           style={{
-            color: "#4b5563",
+            color: theme.colors.textMuted,
             fontSize: 12,
             fontWeight: "700",
             textAlign: "center",
@@ -438,38 +443,48 @@ function FlowStep(input: {
 }
 
 function PriceCard({ estimate }: { estimate: PriceEstimate | null | undefined }) {
+  const theme = useTheme();
   if (!estimate) {
     return (
-      <View style={{ borderColor: "#d1d5db", borderRadius: 8, borderWidth: 1, gap: 6, padding: 14 }}>
+      <View style={{ borderColor: theme.colors.neutralBorder, borderRadius: 8, borderWidth: 1, gap: 6, padding: 14 }}>
         <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
           No price estimate yet
         </Text>
-        <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+        <Text selectable style={{ color: theme.colors.textMuted, lineHeight: 20 }}>
           Pricing will appear here after local cache or cloud enrichment runs.
         </Text>
       </View>
     );
   }
 
+  const evidence = parsePricingEvidence(estimate);
+  const providerMixLabel = formatProviderMixLabel(estimate, evidence);
+  const providerCount = getStructuredProviderLabels(evidence).length;
+
   return (
-    <View style={{ backgroundColor: "#111827", borderRadius: 8, gap: 12, padding: 16 }}>
-      <Text selectable style={{ color: "white", fontSize: 18, fontWeight: "800" }}>
+    <View style={{ backgroundColor: theme.colors.neutralStrong, borderRadius: 8, gap: 12, padding: 16 }}>
+      <Text selectable style={{ color: theme.colors.textInverse, fontSize: 18, fontWeight: "800" }}>
         Pricing Signal
       </Text>
-      <Text selectable style={{ color: "white", fontSize: 34, fontWeight: "900" }}>
+      <Text selectable style={{ color: theme.colors.textInverse, fontSize: 34, fontWeight: "900" }}>
         {formatRange(estimate)}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        <Pill label={formatSourceLabel(estimate.sourceType)} />
+        <Pill label={providerMixLabel} />
         <Pill label={`List ${formatMoney(estimate.suggestedListPrice, estimate.currency)}`} />
         <Pill label={`Buy ${formatMoney(estimate.suggestedBuyPrice, estimate.currency)}`} />
         <Pill label={formatConfidence(estimate.confidence)} />
       </View>
-      <Text selectable style={{ color: "#d1d5db", lineHeight: 20 }}>
+      {providerCount > 1 ? (
+        <Text selectable style={{ color: theme.colors.neutralBorderSoft, lineHeight: 19 }}>
+          Combined from {providerCount} structured sources.
+        </Text>
+      ) : null}
+      <Text selectable style={{ color: theme.colors.neutralBorder, lineHeight: 20 }}>
         {estimate.evidenceSummary ?? "No evidence summary."}
       </Text>
       {estimate.lookupQuery ? (
-        <Text selectable style={{ color: "#9ca3af", lineHeight: 20 }}>
+        <Text selectable style={{ color: theme.colors.disabled, lineHeight: 20 }}>
           Query: {estimate.lookupQuery}
         </Text>
       ) : null}
@@ -478,6 +493,7 @@ function PriceCard({ estimate }: { estimate: PriceEstimate | null | undefined })
 }
 
 function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefined }) {
+  const theme = useTheme();
   const evidence = parsePricingEvidence(estimate);
 
   if (!estimate || evidence.sources.length === 0) {
@@ -487,15 +503,15 @@ function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefi
   return (
     <View style={{ gap: 12 }}>
       <View style={{ gap: 4 }}>
-        <Text selectable style={{ color: "#111827", fontSize: 20, fontWeight: "800" }}>
+        <Text selectable style={{ color: theme.colors.text, fontSize: 20, fontWeight: "800" }}>
           Comparable Listings
         </Text>
         {evidence.searchQueries.length > 0 ? (
-          <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+          <Text selectable style={{ color: theme.colors.textMuted, lineHeight: 20 }}>
             {evidence.searchQueries.length} marketplace search quer{evidence.searchQueries.length === 1 ? "y" : "ies"} checked.
           </Text>
         ) : null}
-        <Text selectable style={{ color: "#6b7280", fontSize: 13, lineHeight: 18 }}>
+        <Text selectable style={{ color: theme.colors.textSoft, fontSize: 13, lineHeight: 18 }}>
           Tap any result to open the original listing.
         </Text>
       </View>
@@ -503,7 +519,7 @@ function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefi
       {evidence.searchQueries.length > 0 ? (
         <View style={{ gap: 6 }}>
           {evidence.searchQueries.map((query) => (
-            <Text key={query} selectable style={{ color: "#4b5563", fontSize: 13, lineHeight: 18 }}>
+            <Text key={query} selectable style={{ color: theme.colors.textMuted, fontSize: 13, lineHeight: 18 }}>
               {query}
             </Text>
           ))}
@@ -513,7 +529,7 @@ function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefi
       {evidence.providerAttempts.length > 0 ? (
         <View style={{ gap: 6 }}>
           {evidence.providerAttempts.map((attempt) => (
-            <Text key={`${attempt.name}-${attempt.status}`} selectable style={{ color: "#6b7280", fontSize: 12, lineHeight: 17 }}>
+            <Text key={`${attempt.name}-${attempt.status}`} selectable style={{ color: theme.colors.textSoft, fontSize: 12, lineHeight: 17 }}>
               {formatProviderAttempt(attempt)}
             </Text>
           ))}
@@ -530,6 +546,7 @@ function EvidenceSection({ estimate }: { estimate: PriceEstimate | null | undefi
 }
 
 function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
+  const theme = useTheme();
   const price = source.detectedPrice !== undefined ? formatMoney(source.detectedPrice, source.currency ?? "USD") : "No price";
   const reasons = source.reasons?.length ? source.reasons.join(" / ") : source.marketplaceType ?? "web result";
 
@@ -543,8 +560,8 @@ function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
       disabled={!source.url}
       onPress={() => void openSource()}
       style={({ pressed }) => ({
-        backgroundColor: pressed ? "#f3f4f6" : "#ffffff",
-        borderColor: "#d1d5db",
+        backgroundColor: pressed ? theme.colors.background : theme.colors.surface,
+        borderColor: theme.colors.neutralBorder,
         borderRadius: 8,
         borderWidth: 1,
         gap: 8,
@@ -553,20 +570,20 @@ function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
     >
       <View style={{ alignItems: "flex-start", flexDirection: "row", gap: 12, justifyContent: "space-between" }}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text selectable style={{ color: "#6b7280", fontSize: 12, fontWeight: "800", textTransform: "uppercase" }}>
+          <Text selectable style={{ color: theme.colors.textSoft, fontSize: 12, fontWeight: "800", textTransform: "uppercase" }}>
             {source.domain ?? "Unknown source"}
           </Text>
-          <Text selectable style={{ color: "#111827", fontSize: 16, fontWeight: "800", lineHeight: 21 }}>
+          <Text selectable style={{ color: theme.colors.text, fontSize: 16, fontWeight: "800", lineHeight: 21 }}>
             {source.title}
           </Text>
         </View>
-        <Text selectable style={{ color: "#111827", fontSize: 18, fontWeight: "900" }}>
+        <Text selectable style={{ color: theme.colors.text, fontSize: 18, fontWeight: "900" }}>
           {price}
         </Text>
       </View>
 
       {source.snippet ? (
-        <Text selectable style={{ color: "#4b5563", lineHeight: 20 }}>
+        <Text selectable style={{ color: theme.colors.textMuted, lineHeight: 20 }}>
           {source.snippet}
         </Text>
       ) : null}
@@ -577,7 +594,7 @@ function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
         {source.exactModelMatch ? <SmallPill label="Model match" /> : null}
       </View>
 
-      <Text selectable style={{ color: "#6b7280", fontSize: 12, lineHeight: 17 }}>
+      <Text selectable style={{ color: theme.colors.textSoft, fontSize: 12, lineHeight: 17 }}>
         {reasons}
       </Text>
 
@@ -585,7 +602,7 @@ function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
         <View
           style={{
             alignItems: "center",
-            borderColor: "#cbd5e1",
+            borderColor: theme.colors.neutralBorderSoft,
             borderRadius: 8,
             borderWidth: 1,
             flexDirection: "row",
@@ -594,10 +611,10 @@ function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
             paddingVertical: 10,
           }}
         >
-          <Text selectable numberOfLines={1} style={{ color: "#1d4ed8", flex: 1, fontSize: 13, fontWeight: "700" }}>
+          <Text selectable numberOfLines={1} style={{ color: theme.colors.link, flex: 1, fontSize: 13, fontWeight: "700" }}>
             View listing
           </Text>
-          <Text selectable style={{ color: "#64748b", fontSize: 12, fontWeight: "700" }}>
+          <Text selectable style={{ color: theme.colors.linkMuted, fontSize: 12, fontWeight: "700" }}>
             Open
           </Text>
         </View>
@@ -607,12 +624,14 @@ function EvidenceCard({ source }: { source: DetailEvidenceItem }) {
 }
 
 function Field({ label, value }: { label: string; value: string }) {
+  const theme = useTheme();
+
   return (
     <View style={{ gap: 2 }}>
-      <Text selectable style={{ color: "#6b7280", fontSize: 13, fontWeight: "700" }}>
+      <Text selectable style={{ color: theme.colors.textSoft, fontSize: 13, fontWeight: "700" }}>
         {label}
       </Text>
-      <Text selectable style={{ color: "#111827", lineHeight: 20 }}>
+      <Text selectable style={{ color: theme.colors.text, lineHeight: 20 }}>
         {value}
       </Text>
     </View>
@@ -620,17 +639,21 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 function Pill({ label }: { label: string }) {
+  const theme = useTheme();
+
   return (
-    <View style={{ backgroundColor: "#374151", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
-      <Text style={{ color: "white", fontSize: 13, fontWeight: "800" }}>{label}</Text>
+    <View style={{ backgroundColor: theme.colors.badgeNeutral, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}>
+      <Text style={{ color: theme.colors.textInverse, fontSize: 13, fontWeight: "800" }}>{label}</Text>
     </View>
   );
 }
 
 function SmallPill({ label }: { label: string }) {
+  const theme = useTheme();
+
   return (
-    <View style={{ backgroundColor: "#eef2ff", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 }}>
-      <Text style={{ color: "#3730a3", fontSize: 12, fontWeight: "800" }}>{label}</Text>
+    <View style={{ backgroundColor: theme.colors.badgeInfo, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 }}>
+      <Text style={{ color: theme.colors.badgeInfoText, fontSize: 12, fontWeight: "800" }}>{label}</Text>
     </View>
   );
 }
@@ -686,6 +709,7 @@ interface DetailEvidenceItem {
   snippet?: string;
   detectedPrice?: number;
   currency?: string;
+  sourceType?: string;
   relevanceScore?: number;
   exactModelMatch?: boolean;
   marketplaceType?: string;
@@ -741,4 +765,39 @@ function parsePricingEvidence(estimate: PriceEstimate | null | undefined): Detai
 function formatProviderAttempt(attempt: ProviderAttempt): string {
   const label = attempt.sourceType ? `${attempt.name}: ${formatSourceLabel(attempt.sourceType)}` : attempt.name;
   return `${label} ${attempt.status} - ${attempt.message}`;
+}
+
+function getStructuredProviderLabels(payload: DetailEvidencePayload): string[] {
+  const structuredSourceTypes = new Set<PriceEstimate["sourceType"]>();
+
+  payload.sources.forEach((source) => {
+    const sourceType = source.sourceType as PriceEstimate["sourceType"] | undefined;
+    if (sourceType && isStructuredSourceType(sourceType)) {
+      structuredSourceTypes.add(sourceType);
+    }
+  });
+
+  payload.providerAttempts.forEach((attempt) => {
+    if (attempt.status === "success" && attempt.sourceType && isStructuredSourceType(attempt.sourceType)) {
+      structuredSourceTypes.add(attempt.sourceType);
+    }
+  });
+
+  return Array.from(structuredSourceTypes).map((sourceType) => formatSourceLabel(sourceType));
+}
+
+function formatProviderMixLabel(
+  estimate: PriceEstimate | null | undefined,
+  payload: DetailEvidencePayload,
+): string {
+  if (!estimate) return "Marketplace";
+  const providers = getStructuredProviderLabels(payload);
+  if (providers.length === 0) return formatSourceLabel(estimate.sourceType);
+  if (providers.length === 1) return providers[0] ?? formatSourceLabel(estimate.sourceType);
+  if (providers.length === 2) return `${providers[0]} + ${providers[1]}`;
+  return `${providers[0]} + ${providers.length - 1} more`;
+}
+
+function isStructuredSourceType(sourceType: PriceEstimate["sourceType"]): boolean {
+  return sourceType === "reverb_listing" || sourceType === "ebay_browse" || sourceType === "pricecharting";
 }

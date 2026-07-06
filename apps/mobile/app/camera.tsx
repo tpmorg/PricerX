@@ -6,10 +6,12 @@ import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DEFAULT_CAMERA_FACING, pickPhotoFromLibrary } from "@/features/scans/imageCapture";
 import { createStagedScanFromImage } from "@/features/scans/localScanService";
+import { useTheme } from "@/theme";
 
 export default function CameraScreen() {
   const cameraRef = useRef<CameraView | null>(null);
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>(DEFAULT_CAMERA_FACING);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
@@ -92,7 +94,7 @@ export default function CameraScreen() {
   }
 
   return (
-    <View style={{ backgroundColor: "black", flex: 1 }}>
+    <View style={{ backgroundColor: theme.colors.cameraBackdrop, flex: 1 }}>
       {capturedUri ? (
         <Image source={{ uri: capturedUri }} style={{ flex: 1 }} resizeMode="cover" />
       ) : (
@@ -117,8 +119,8 @@ export default function CameraScreen() {
             onPress={() => router.back()}
             style={({ pressed }) => ({
               alignItems: "center",
-              backgroundColor: pressed ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.45)",
-              borderColor: "rgba(255,255,255,0.24)",
+              backgroundColor: pressed ? theme.colors.cameraControlPressed : theme.colors.cameraControl,
+              borderColor: theme.colors.cameraControlBorder,
               borderRadius: 999,
               borderWidth: 1,
               flexDirection: "row",
@@ -127,8 +129,8 @@ export default function CameraScreen() {
               paddingVertical: 10,
             })}
           >
-            <X color="white" size={16} weight="bold" />
-            <Text selectable style={{ color: "white", fontSize: 15, fontWeight: "700" }}>
+            <X color={theme.colors.textInverse} size={16} weight="bold" />
+            <Text selectable style={{ color: theme.colors.textInverse, fontSize: 15, fontWeight: "700" }}>
               Close
             </Text>
           </Pressable>
@@ -139,7 +141,7 @@ export default function CameraScreen() {
             <View
               style={{
                 alignSelf: "center",
-                borderColor: "rgba(255,255,255,0.6)",
+                borderColor: theme.colors.cameraFrameBorder,
                 borderRadius: 24,
                 borderWidth: 2,
                 height: "58%",
@@ -153,14 +155,14 @@ export default function CameraScreen() {
 
         <View style={{ gap: 12 }}>
           {error ? (
-            <Text selectable style={{ color: "#fca5a5", lineHeight: 20, textAlign: "center" }}>
+            <Text selectable style={{ color: theme.colors.cameraError, lineHeight: 20, textAlign: "center" }}>
               {error}
             </Text>
           ) : null}
 
           {capturedUri ? (
             <>
-              <Text selectable style={{ color: "white", fontSize: 18, fontWeight: "700", textAlign: "center" }}>
+              <Text selectable style={{ color: theme.colors.textInverse, fontSize: 18, fontWeight: "700", textAlign: "center" }}>
                 Use this photo for pricing?
               </Text>
               <View style={{ flexDirection: "row", gap: 12 }}>
@@ -169,14 +171,14 @@ export default function CameraScreen() {
                   onPress={handleRetake}
                   variant="secondary"
                   disabled={isBusy}
-                  icon={<ArrowsClockwise color="white" size={18} weight="bold" />}
+                  icon={<ArrowsClockwise color={theme.colors.textInverse} size={18} weight="bold" />}
                 />
                 <CameraButton
                   label={isBusy ? "Analyzing..." : "Use Photo"}
                   onPress={() => void handleUsePhoto()}
                   variant="primary"
                   disabled={isBusy}
-                  icon={<Check color="#111827" size={18} weight="bold" />}
+                  icon={<Check color={theme.colors.neutralStrong} size={18} weight="bold" />}
                 />
               </View>
             </>
@@ -188,14 +190,14 @@ export default function CameraScreen() {
                   onPress={() => void handlePickFromLibrary()}
                   variant="secondary"
                   disabled={isBusy}
-                  icon={<ImagesSquare color="white" size={18} weight="bold" />}
+                  icon={<ImagesSquare color={theme.colors.textInverse} size={18} weight="bold" />}
                 />
                 <CameraButton
                   label="Flip"
                   onPress={handleFlipCamera}
                   variant="secondary"
                   disabled={isBusy}
-                  icon={<ArrowsClockwise color="white" size={18} weight="bold" />}
+                  icon={<ArrowsClockwise color={theme.colors.textInverse} size={18} weight="bold" />}
                 />
               </View>
               <Pressable
@@ -210,8 +212,8 @@ export default function CameraScreen() {
                 <View
                   style={{
                     alignItems: "center",
-                    backgroundColor: "rgba(255,255,255,0.18)",
-                    borderColor: "rgba(255,255,255,0.3)",
+                    backgroundColor: theme.colors.cameraShutterOuter,
+                    borderColor: theme.colors.cameraShutterOuterBorder,
                     borderRadius: 999,
                     borderWidth: 2,
                     height: 88,
@@ -221,7 +223,7 @@ export default function CameraScreen() {
                 >
                   <View
                     style={{
-                      backgroundColor: "white",
+                      backgroundColor: theme.colors.textInverse,
                       borderRadius: 999,
                       height: 68,
                       width: 68,
@@ -232,7 +234,7 @@ export default function CameraScreen() {
             </>
           )}
 
-          {isBusy && !capturedUri ? <ActivityIndicator color="white" /> : null}
+          {isBusy && !capturedUri ? <ActivityIndicator color={theme.colors.textInverse} /> : null}
         </View>
       </View>
     </View>
@@ -246,6 +248,8 @@ function CameraButton(input: {
   disabled?: boolean;
   icon?: React.ReactNode;
 }) {
+  const theme = useTheme();
+
   return (
     <Pressable
       disabled={input.disabled}
@@ -255,14 +259,14 @@ function CameraButton(input: {
         backgroundColor:
           input.variant === "primary"
             ? input.disabled
-              ? "#9ca3af"
+              ? theme.colors.disabled
               : pressed
-                ? "#111827"
-                : "#ffffff"
+                ? theme.colors.neutralStrong
+                : theme.colors.textInverse
             : pressed
-              ? "rgba(255,255,255,0.2)"
-              : "rgba(0,0,0,0.45)",
-        borderColor: input.variant === "primary" ? "#ffffff" : "rgba(255,255,255,0.24)",
+              ? theme.colors.cameraControlPressed
+              : theme.colors.cameraControl,
+        borderColor: input.variant === "primary" ? theme.colors.textInverse : theme.colors.cameraControlBorder,
         borderRadius: 16,
         borderWidth: 1,
         flex: 1,
@@ -277,7 +281,7 @@ function CameraButton(input: {
       <Text
         selectable
         style={{
-          color: input.variant === "primary" ? "#111827" : "white",
+          color: input.variant === "primary" ? theme.colors.neutralStrong : theme.colors.textInverse,
           fontSize: 16,
           fontWeight: "700",
         }}
@@ -295,9 +299,11 @@ function FullscreenMessage(input: {
   secondaryLabel?: string;
   onSecondary?: () => void;
 }) {
+  const theme = useTheme();
+
   return (
-    <View style={{ alignItems: "center", backgroundColor: "#0f172a", flex: 1, gap: 16, justifyContent: "center", padding: 24 }}>
-      <Text selectable style={{ color: "white", fontSize: 20, fontWeight: "700", textAlign: "center" }}>
+    <View style={{ alignItems: "center", backgroundColor: theme.colors.neutralStrong, flex: 1, gap: 16, justifyContent: "center", padding: 24 }}>
+      <Text selectable style={{ color: theme.colors.textInverse, fontSize: 20, fontWeight: "700", textAlign: "center" }}>
         {input.message}
       </Text>
       {input.actionLabel && input.onAction ? (

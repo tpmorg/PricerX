@@ -90,6 +90,7 @@ export const convexMarketplacePricingProvider: PricingProvider = {
         ...(result.medianPrice !== undefined ? { medianPrice: result.medianPrice } : {}),
         ...(result.suggestedListPrice !== undefined ? { suggestedListPrice: result.suggestedListPrice } : {}),
         ...(result.suggestedBuyPrice !== undefined ? { suggestedBuyPrice: result.suggestedBuyPrice } : {}),
+        ...(result.retailPrice !== undefined ? { retailPrice: result.retailPrice } : {}),
       },
       evidence: result.sources,
     } satisfies PricingResult;

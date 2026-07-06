@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { brandColors, brandTypography } from "@/theme/brand";
+import { useTheme } from "@/theme";
 
 export function SectionHeader(input: {
   eyebrow?: string;
@@ -8,24 +8,25 @@ export function SectionHeader(input: {
   trailing?: React.ReactNode;
   inverted?: boolean;
 }) {
+  const theme = useTheme();
   const inverted = input.inverted === true;
-  const titleColor = inverted ? brandColors.white : brandColors.ink;
-  const bodyColor = inverted ? "rgba(255,255,255,0.78)" : brandColors.inkMuted;
-  const eyebrowColor = inverted ? "rgba(255,255,255,0.68)" : brandColors.primaryStrong;
+  const titleColor = inverted ? theme.colors.textInverse : theme.colors.text;
+  const bodyColor = inverted ? theme.colors.overlayInverseTextBody : theme.colors.textMuted;
+  const eyebrowColor = inverted ? theme.colors.overlayInverseTextSoft : theme.colors.primaryStrong;
 
   return (
     <View style={{ alignItems: "flex-start", flexDirection: "row", gap: 12, justifyContent: "space-between" }}>
       <View style={{ flex: 1, gap: 6 }}>
         {input.eyebrow ? (
-          <Text selectable style={{ ...brandTypography.eyebrow, color: eyebrowColor, textTransform: "uppercase" }}>
+          <Text selectable style={{ ...theme.typography.eyebrow, color: eyebrowColor, textTransform: "uppercase" }}>
             {input.eyebrow}
           </Text>
         ) : null}
-        <Text selectable style={{ ...brandTypography.heroTitle, color: titleColor }}>
+        <Text selectable style={{ ...theme.typography.heroTitle, color: titleColor }}>
           {input.title}
         </Text>
         {input.description ? (
-          <Text selectable style={{ ...brandTypography.body, color: bodyColor, lineHeight: 21 }}>
+          <Text selectable style={{ ...theme.typography.body, color: bodyColor, lineHeight: 21 }}>
             {input.description}
           </Text>
         ) : null}

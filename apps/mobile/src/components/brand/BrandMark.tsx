@@ -1,13 +1,14 @@
 import { Text, View } from "react-native";
-import { brandColors, brandCopy, brandRadii, brandTypography } from "@/theme/brand";
+import { useTheme } from "@/theme";
 
 export function BrandMark(input?: { compact?: boolean; inverted?: boolean }) {
+  const theme = useTheme();
   const compact = input?.compact === true;
   const inverted = input?.inverted === true;
-  const badgeBackground = inverted ? "rgba(255,255,255,0.16)" : brandColors.primarySoft;
-  const badgeText = inverted ? brandColors.white : brandColors.primaryStrong;
-  const titleColor = inverted ? brandColors.white : brandColors.ink;
-  const subtitleColor = inverted ? "rgba(255,255,255,0.74)" : brandColors.inkMuted;
+  const badgeBackground = inverted ? theme.colors.overlayInverseSoft : theme.colors.primarySoft;
+  const badgeText = inverted ? theme.colors.textInverse : theme.colors.primaryStrong;
+  const titleColor = inverted ? theme.colors.textInverse : theme.colors.text;
+  const subtitleColor = inverted ? theme.colors.overlayInverseTextMuted : theme.colors.textMuted;
 
   return (
     <View style={{ alignItems: "center", flexDirection: "row", gap: compact ? 10 : 12 }}>
@@ -15,7 +16,7 @@ export function BrandMark(input?: { compact?: boolean; inverted?: boolean }) {
         style={{
           alignItems: "center",
           backgroundColor: badgeBackground,
-          borderRadius: brandRadii.md,
+          borderRadius: theme.radii.md,
           height: compact ? 42 : 48,
           justifyContent: "center",
           width: compact ? 42 : 48,
@@ -34,12 +35,12 @@ export function BrandMark(input?: { compact?: boolean; inverted?: boolean }) {
       </View>
 
       <View style={{ gap: compact ? 0 : 2 }}>
-        <Text selectable style={{ ...brandTypography.sectionTitle, color: titleColor, fontSize: compact ? 18 : 22 }}>
-          {brandCopy.appName}
+        <Text selectable style={{ ...theme.typography.sectionTitle, color: titleColor, fontSize: compact ? 18 : 22 }}>
+          {theme.copy.appName}
         </Text>
         {!compact ? (
-          <Text selectable style={{ ...brandTypography.body, color: subtitleColor, fontSize: 14 }}>
-            {brandCopy.tagLine}
+          <Text selectable style={{ ...theme.typography.body, color: subtitleColor, fontSize: 14 }}>
+            {theme.copy.tagLine}
           </Text>
         ) : null}
       </View>

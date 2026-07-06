@@ -4,7 +4,7 @@ import { Tabs, router } from "expo-router";
 import type { ComponentProps } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { brandColors, brandRadii, brandShadows } from "@/theme/brand";
+import { useTheme } from "@/theme";
 
 export default function TabsLayout() {
   return (
@@ -25,15 +25,16 @@ type FloatingCaptureTabBarProps = Parameters<NonNullable<ComponentProps<typeof T
 
 function FloatingCaptureTabBar({ state, descriptors, navigation }: FloatingCaptureTabBarProps) {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   const cameraButtonSize = 84;
 
   return (
     <View
       style={{
-        backgroundColor: brandColors.surface,
-        borderTopColor: brandColors.line,
+        backgroundColor: theme.colors.surface,
+        borderTopColor: theme.colors.border,
         borderTopWidth: 1,
-        boxShadow: brandShadows.subtle,
+        boxShadow: theme.shadows.subtle,
         flexDirection: "row",
         paddingBottom: Math.max(insets.bottom, 12),
         paddingHorizontal: 10,
@@ -57,24 +58,24 @@ function FloatingCaptureTabBar({ state, descriptors, navigation }: FloatingCaptu
           onPress={() => router.push("/camera")}
           style={({ pressed }) => ({
             alignItems: "center",
-            backgroundColor: pressed ? brandColors.primaryStrong : brandColors.primary,
-            borderColor: brandColors.surface,
+            backgroundColor: pressed ? theme.colors.primaryStrong : theme.colors.primary,
+            borderColor: theme.colors.surface,
             borderRadius: 999,
             borderWidth: 4,
-            boxShadow: "0 12px 24px rgba(20, 32, 43, 0.14)",
+            boxShadow: theme.shadows.floating,
             height: cameraButtonSize,
             justifyContent: "center",
             width: cameraButtonSize,
           })}
         >
-          <Camera color="#ffffff" size={36} weight="fill" />
+          <Camera color={theme.colors.textInverse} size={36} weight="fill" />
         </Pressable>
       </View>
 
       {state.routes.map((route: FloatingCaptureTabBarProps["state"]["routes"][number], index: number) => {
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
-        const color = isFocused ? brandColors.ink : brandColors.inkSoft;
+        const color = isFocused ? theme.colors.text : theme.colors.textSoft;
 
         const onPress = () => {
           const event = navigation.emit({
@@ -116,7 +117,8 @@ function FloatingCaptureTabBar({ state, descriptors, navigation }: FloatingCaptu
 }
 
 function TabGlyph({ routeName, isFocused }: { routeName: string; isFocused: boolean }) {
-  const color = isFocused ? brandColors.ink : brandColors.inkSoft;
+  const theme = useTheme();
+  const color = isFocused ? theme.colors.text : theme.colors.textSoft;
 
   if (routeName === "index") {
     return <House color={color} size={20} strokeWidth={2.25} />;
