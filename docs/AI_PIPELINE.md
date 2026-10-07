@@ -171,12 +171,16 @@ Avoid generic queries when a model number exists.
 
 Pricing enrichment should run only after cache checks.
 
-Provider order:
+Provider order (see `docs/PRICING_SOURCES.md` for full rationale):
 
 1. local SQLite cache
-2. Convex canonical cache
-3. Brave Search backend action
-4. future marketplace-specific providers
+2. Convex canonical cache (`priceSnapshots` table, 30-day TTL)
+3. Reverb listings for music gear and pro audio (structured marketplace listings)
+4. eBay Browse API (structured asking prices, general categories)
+5. PriceCharting API (price-guide medians, games/electronics)
+6. Brave Web Search (discovery-only — candidate pages, no structured prices)
+
+Amazon, Facebook Marketplace, OfferUp, and Craigslist are intentionally excluded as automated sources; see `docs/PRICING_SOURCES.md` for the ToS and product-fit rationale and the user-paste-only path.
 
 External lookup should return evidence, not just an answer.
 
@@ -296,8 +300,10 @@ Phase 2:
 
 Phase 3:
 
-- Brave Search backend action
-- evidence parser
+- eBay Browse API adapter (structured prices)
+- PriceCharting API adapter (structured prices)
+- Amazon PA-API adapter stub
+- Brave Search demoted to discovery-only
 - value range summarizer
 
 Phase 4:

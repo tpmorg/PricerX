@@ -1,59 +1,23 @@
-# Task 0004: Pricing Lookup Spike
+# Task 0004: Pricing Lookup Spike — CLOSED
 
-## Goal
+## Outcome
 
-Prove that Pricernu can enrich a recognized object with pricing evidence through a backend action and store the result locally.
+Spike concluded with a **negative result**: Brave Web Search alone cannot provide reliable structured pricing for the scan-identify-price-save loop. Brave returns search-result snippets (title, URL, ~150-char description) and does not extract retail `Offer` schema or marketplace sale prices. The regex on snippets produced empty `detectedPrice` values on ~95%+ of evidence rows, so `lowPrice`/`highPrice`/`medianPrice` were omitted from the response and no usable value range reached the UI.
 
-## Context
+This was the expected outcome per the spike's own non-goals: *"Do not overfit to Brave response shape before the first real API test"* and *"production-grade evidence ranking"* were both out of scope. The spike succeeded in proving its negative hypothesis.
 
-Pricing is the first killer feature, but it must be cache-first and cost-aware. This task should validate the path from recognized identity to pricing evidence without building the full monetization system.
+## What was proven
 
-## Requirements
+- The `PricingProvider` interface shape is correct and stable.
+- The Convex action boundary correctly hides server-side API keys from the mobile client.
+- Cache-key generation from normalized brand/model/category/name is reusable across providers.
+- The mobile client adapter (`convexPricingProvider.ts`) correctly consumes the structured `{ ok, result | reason }` response.
+- The "no fake certainty" rule from PRD §9 held — empty evidence produced typed failures, not invented prices.
 
-- Create a pricing provider interface.
-- Add a mock pricing provider for local development.
-- Scaffold Convex backend if not already present.
-- Add a Convex action placeholder for Brave Search lookup.
-- Keep Brave API key server-side only.
-- Generate normalized pricing query from recognition result.
-- Store price estimate locally.
-- Display value range and confidence on scan/item detail.
+## What changed
 
-## Suggested Pricing Output
+See task 0006 and `docs/PRICING_SOURCES.md` for the structured-provider pivot that replaced this spike.
 
-```ts
-export type PriceEstimate = {
-  lowPrice?: number;
-  highPrice?: number;
-  medianPrice?: number;
-  suggestedListPrice?: number;
-  suggestedBuyPrice?: number;
-  retailPrice?: number;
-  currency: 'USD';
-  confidence: number;
-  sourceType: 'local_cache' | 'convex_cache' | 'brave_search' | 'mock';
-  evidenceSummary?: string;
-  raw?: unknown;
-};
-```
+## Status
 
-## Acceptance Criteria
-
-- Mock pricing result can appear in UI.
-- Local cache key is generated from brand/model/category/name.
-- Price estimate persists locally.
-- Convex action exists or is documented with a runnable placeholder.
-- No API key is committed.
-- UI makes source clear: mock/cache/fresh lookup.
-
-## Non-Goals
-
-- credit accounting
-- real payments
-- perfect evidence parsing
-- multiple marketplace providers
-- production-ready Brave parser
-
-## Notes For AI Agents
-
-Do not overfit to Brave response shape before the first real API test. Build a narrow adapter and keep raw evidence available for inspection.
+Closed. No further Brave-only work is planned.

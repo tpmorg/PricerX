@@ -24,11 +24,14 @@ Expo React Native App
         |
         |-- user sync
         |-- canonical object cache
-        |-- pricing snapshots
+        |-- priceSnapshots canonical pricing cache
         |-- credit ledger
         |-- backend actions
               |
-              +-- Brave Search API
+              +-- Reverb listings API
+              +-- eBay Browse API
+              +-- PriceCharting API
+              +-- Brave Search API (discovery only)
               +-- future cloud vision providers
 ```
 
@@ -99,31 +102,55 @@ Auth must be optional for initial local use.
 
 ## 7. External API Responsibilities
 
-### Brave Search API
+### Reverb Listings API
 
-Initial pricing discovery provider.
+Music-gear-specific structured listings for guitars, pedals, synths, recording gear, DJ gear, microphones, and related pro-audio equipment.
 
 Used for:
 
-- identifying retail pages
-- marketplace snippets
-- comparable listings
-- manufacturer pages
-- general web price evidence
+- higher-signal comparable listings for instrument and audio categories
+- condition-aware marketplace prices in a domain-specific marketplace
+- structured listing extraction before general-market providers
 
-Brave calls must happen server-side through Convex actions so API keys do not ship to the client.
+This spike currently uses Reverb's public listings endpoint from the backend only. If Reverb later requires registered app auth for stable access, the provider can be upgraded without changing the mobile flow.
+
+### eBay Browse API
+
+Primary structured pricing provider for resale market value.
+
+Used for:
+
+- asking-price listings across categories
+- comparable listings with condition and seller data
+- structured price extraction (no regex on snippets)
+
+eBay calls must happen server-side through Convex actions so API keys do not ship to the client.
+
+### PriceCharting API
+
+Structured price-guide medians for video games, retro consoles, and select electronics.
+
+Used for:
+
+- historical sold-price medians (loose / complete-in-box / new)
+- coverage where eBay listings are sparse or speculative
+
+### Brave Web Search
+
+Discovery-only provider. Returns candidate pages for niche items where no structured provider has data. No structured prices are extracted from snippets; confidence is capped at 0.18.
+
+### Excluded marketplaces
+
+Amazon, Facebook Marketplace, OfferUp, and Craigslist are intentionally excluded as automated sources. Amazon's Product Advertising API is gated on an Associates account with ongoing qualifying sales (chicken-and-egg with new apps); the others have no public API and ToS prohibit scraping. See `docs/PRICING_SOURCES.md` for rationale and the user-paste-only alternative.
 
 ### Future Providers
 
-Future providers may include:
+Every provider should live behind the `PricingProvider` interface. Candidates:
 
 - cloud vision model
-- eBay sold listing API or compliant integration
-- Reverb
-- PriceCharting
+- eBay sold-listing scope (requires approved access)
+- Swappa API
 - barcode/product APIs
-
-Every provider should live behind an interface.
 
 ## 8. Provider Interfaces
 
