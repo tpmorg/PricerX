@@ -1,5 +1,4 @@
-import { query } from "./_generated/server";
-import { mutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 export interface PriceSnapshotRow {
@@ -24,19 +23,18 @@ export interface PriceSnapshotRow {
   expiresAt: string;
 }
 
-export const getFreshSnapshot = query({
+export const getFreshSnapshot = internalQuery({
   args: {
     lookupCacheKey: v.string(),
     nowIso: v.string(),
   },
   handler: async (ctx, args): Promise<PriceSnapshotRow | null> => {
-    const rows = await ctx.db
+    const freshRow = await ctx.db
       .query("priceSnapshots")
       .withIndex("by_cache_key", (q) => q.eq("lookupCacheKey", args.lookupCacheKey))
       .order("desc")
-      .collect();
-
-    const freshRow = rows.find((row) => row.expiresAt > args.nowIso);
+      .filter((q) => q.gt(q.field("expiresAt"), args.nowIso))
+      .first();
     if (!freshRow) return null;
 
     return {
@@ -63,7 +61,7 @@ export const getFreshSnapshot = query({
   },
 });
 
-export const recordSnapshot = mutation({
+export const recordSnapshot = internalMutation({
   args: {
     lookupCacheKey: v.string(),
     normalizedName: v.string(),

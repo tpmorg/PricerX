@@ -1,4 +1,5 @@
 import type {
+  ConditionGrade,
   EvidenceItem,
   PricingIdentity,
   ProviderOutcome,
@@ -17,8 +18,15 @@ import {
 
 const EBAY_OAUTH_URL = "https://api.ebay.com/identity/v1/oauth2/token";
 const EBAY_BROWSE_SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
-const EBAY_BROWSE_SCOPE = "https://api.ebay.com/oauth/api_scope/buy.marketplace";
+// Browse search uses the base application scope with the client-credentials grant.
+const EBAY_BROWSE_SCOPE = "https://api.ebay.com/oauth/api_scope";
 const PRICE_CEILING = 100000;
+// eBay condition ids: https://developer.ebay.com/api-docs/sell/static/metadata/condition-id-values.html
+const EBAY_CONDITION_IDS: Record<ConditionGrade, string> = {
+  new: "1000|1500",
+  used: "2000|2010|2020|2030|2500|2750|3000|4000|5000|6000",
+  for_parts: "7000",
+};
 
 interface EbayItemSummary {
   itemId?: string;
@@ -47,7 +55,7 @@ interface EbayTokenResponse {
 export async function lookupEbayPricing(input: {
   identity: PricingIdentity;
   query: string;
-  condition?: string;
+  condition?: ConditionGrade;
 }): Promise<ProviderOutcome> {
   const clientId = process.env.EBAY_CLIENT_ID;
   const clientSecret = process.env.EBAY_CLIENT_SECRET;
@@ -70,14 +78,16 @@ export async function lookupEbayPricing(input: {
     };
   }
 
-  const searchQuery = buildEbaySearchQuery(input.identity, input.query, input.condition);
+  const searchQuery = buildEbaySearchQuery(input.identity, input.query);
+  const filters = ["buyingOptions:{FIXED_PRICE}"];
+  if (input.condition) filters.push(`conditionIds:{${EBAY_CONDITION_IDS[input.condition]}}`);
   let response: Response;
   try {
     response = await fetch(
       `${EBAY_BROWSE_SEARCH_URL}?${new URLSearchParams({
         q: searchQuery,
         limit: "50",
-        filter: "buyingOptions:FIXED_PRICE",
+        filter: filters.join(","),
         sort: "price asc",
       })}`,
       {
@@ -185,7 +195,7 @@ async function fetchEbayAccessToken(clientId: string, clientSecret: string): Pro
   return payload.access_token ?? null;
 }
 
-function buildEbaySearchQuery(identity: PricingIdentity, suggestedQuery: string, _condition?: string | undefined): string {
+function buildEbaySearchQuery(identity: PricingIdentity, suggestedQuery: string): string {
   const quotedModel = [identity.brand, identity.model].filter(Boolean).join(" ").trim();
   if (quotedModel) return quotedModel;
   const exactName = [identity.brand, identity.model, identity.category ?? identity.displayName]
@@ -215,7 +225,7 @@ function toEbayEvidence(
   const condition = item.condition ?? "";
   const exactMatch = matchesModel(`${title} ${condition}`, identity);
 
-  const reasons: string[] = ["eBay sold listing", "structured price"];
+  const reasons: string[] = ["eBay active listing", "asking price"];
   if (exactMatch) reasons.push("model match");
   if (condition) reasons.push(`condition: ${condition.toLowerCase()}`);
 

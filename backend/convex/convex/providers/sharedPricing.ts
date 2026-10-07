@@ -9,6 +9,8 @@ export interface PricingIdentity {
   variant?: string;
 }
 
+export type ConditionGrade = "new" | "used" | "for_parts";
+
 export const DEFAULT_CURRENCY = "USD";
 export const MAX_EVIDENCE_ITEMS = 12;
 export const PRICE_TTL_DAYS = 30;

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { api } from "./_generated/api";
-import type { EvidenceItem, ProviderOutcome, ResolvedPricingResult, PricingIdentity } from "./providers/sharedPricing";
+import { internal } from "./_generated/api";
+import type { ConditionGrade, EvidenceItem, ProviderOutcome, ResolvedPricingResult, PricingIdentity } from "./providers/sharedPricing";
 import { estimateConfidence, isMusicGearIdentity, summarizePrices, trimPriceOutliers } from "./providers/sharedPricing";
 import { lookupReverbPricing } from "./providers/reverbProvider";
 import { lookupEbayPricing } from "./providers/ebayProvider";
@@ -11,6 +11,7 @@ import { lookupBraveDiscovery } from "./providers/braveProvider";
 const DEFAULT_CURRENCY = "USD";
 const PRICE_TTL_DAYS = 30;
 const STRONG_SOURCE_TYPES: ResolvedPricingResult["sourceType"][] = ["reverb_listing", "ebay_browse", "pricecharting"];
+const DEVICE_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
 
 export type PricingSourceTypeString =
   | "convex_cache"
@@ -39,11 +40,13 @@ export const lookupPricing = action({
       variant: v.optional(v.string()),
     }),
     query: v.string(),
-    condition: v.optional(v.string()),
+    condition: v.optional(v.union(v.literal("new"), v.literal("used"), v.literal("for_parts"))),
+    deviceId: v.string(),
+    forceRefresh: v.optional(v.boolean()),
     cacheHit: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<PricingActionResponse> => {
-    const lookupCacheKey = buildCacheKey(args.identity);
+    const lookupCacheKey = buildCacheKey(args.identity, args.condition);
     const createdAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + PRICE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
@@ -58,10 +61,23 @@ export const lookupPricing = action({
       };
     }
 
-    const cached = await ctx.runQuery(api.priceSnapshots.getFreshSnapshot, {
-      lookupCacheKey,
-      nowIso: createdAt,
-    });
+    if (!DEVICE_ID_PATTERN.test(args.deviceId)) {
+      return {
+        ok: false,
+        reason: "invalid_device",
+        message: "Pricing requests need a valid app install id.",
+        lookupCacheKey,
+        creditCost: 0,
+        createdAt,
+      };
+    }
+
+    const cached = args.forceRefresh
+      ? null
+      : await ctx.runQuery(internal.priceSnapshots.getFreshSnapshot, {
+          lookupCacheKey,
+          nowIso: createdAt,
+        });
     if (cached) {
       return {
         ok: true,
@@ -86,16 +102,41 @@ export const lookupPricing = action({
       };
     }
 
+    const quota = await ctx.runMutation(internal.rateLimits.consumeLookupQuota, { deviceId: args.deviceId });
+    if (!quota.allowed) {
+      const retryMinutes = Math.max(1, Math.ceil(quota.retryAfterMs / 60000));
+      return {
+        ok: false,
+        reason: "rate_limited",
+        message: quota.scope === "global"
+          ? `Fresh pricing lookups are paused for today. Cached prices still work. Try again in about ${retryMinutes} min.`
+          : `You've hit the fresh-lookup limit for now. Try again in about ${retryMinutes} min.`,
+        lookupCacheKey,
+        creditCost: 0,
+        createdAt,
+      };
+    }
+
     const providers: Array<{
       name: string;
       run: () => Promise<ProviderOutcome>;
     }> = buildProviders(args.identity, args.query, args.condition);
 
+    const disabledProviders = readDisabledProviders();
     const attempts: ProviderAttemptTrace[] = [];
     const structuredResults: ResolvedPricingResult[] = [];
     const discoveryResults: ResolvedPricingResult[] = [];
 
     for (const provider of providers) {
+      if (disabledProviders.has(provider.name)) {
+        attempts.push({
+          name: provider.name,
+          status: "skipped",
+          message: "Disabled by PRICING_DISABLED_PROVIDERS.",
+        });
+        continue;
+      }
+
       const outcome = await provider.run();
       if (!outcome.ok) {
         attempts.push({
@@ -145,7 +186,7 @@ export const lookupPricing = action({
       };
     }
 
-    await ctx.runMutation(api.priceSnapshots.recordSnapshot, {
+    await ctx.runMutation(internal.priceSnapshots.recordSnapshot, {
       lookupCacheKey,
       normalizedName: args.identity.normalizedName,
       brand: args.identity.brand,
@@ -223,12 +264,13 @@ export interface PricingActionFailure {
 
 export type PricingActionResponse = PricingActionSuccess | PricingActionFailure;
 
-function buildCacheKey(identity: PricingIdentity): string {
+function buildCacheKey(identity: PricingIdentity, condition?: ConditionGrade): string {
   return [
     identity.normalizedBrand ?? "",
     identity.normalizedModel ?? "",
     identity.category ? identity.category.toLowerCase().trim() : "",
     identity.normalizedName,
+    condition ?? "",
   ].join("|");
 }
 
@@ -245,13 +287,24 @@ function mapSourceTypeLabel(source: ResolvedPricingResult["sourceType"]): Pricin
   }
 }
 
-function buildProviders(identity: PricingIdentity, query: string, condition?: string) {
+// Comma-separated provider names to switch off without a deploy, e.g.
+// `npx convex env set PRICING_DISABLED_PROVIDERS ebay`.
+function readDisabledProviders(): Set<string> {
+  return new Set(
+    (process.env.PRICING_DISABLED_PROVIDERS ?? "")
+      .split(",")
+      .map((name) => name.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function buildProviders(identity: PricingIdentity, query: string, condition?: ConditionGrade) {
   const generalProviders: Array<{
     name: string;
     run: () => Promise<ProviderOutcome>;
   }> = [
     { name: "ebay", run: () => lookupEbayPricing({ identity, query, condition }) },
-    { name: "pricecharting", run: () => lookupPriceChartingPricing({ identity, query }) },
+    { name: "pricecharting", run: () => lookupPriceChartingPricing({ identity, query, condition }) },
     { name: "brave", run: () => lookupBraveDiscovery({ identity, query }) },
   ];
 
@@ -260,7 +313,7 @@ function buildProviders(identity: PricingIdentity, query: string, condition?: st
   }
 
   return [
-    { name: "reverb", run: () => lookupReverbPricing({ identity, query }) },
+    { name: "reverb", run: () => lookupReverbPricing({ identity, query, condition }) },
     ...generalProviders,
   ];
 }

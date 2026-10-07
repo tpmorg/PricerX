@@ -1,4 +1,5 @@
 import type {
+  ConditionGrade,
   EvidenceItem,
   PricingIdentity,
   ProviderOutcome,
@@ -33,7 +34,17 @@ interface PriceChartingSearchResponse {
 export async function lookupPriceChartingPricing(input: {
   identity: PricingIdentity;
   query: string;
+  condition?: ConditionGrade;
 }): Promise<ProviderOutcome> {
+  if (input.condition === "for_parts") {
+    return {
+      ok: false,
+      skip: true,
+      reason: "no_results",
+      message: "PriceCharting has no for-parts pricing; skipping.",
+    };
+  }
+
   const token = process.env.PRICECHARTING_API_TOKEN;
   if (!token) {
     return {
@@ -83,7 +94,7 @@ export async function lookupPriceChartingPricing(input: {
 
   const sources: EvidenceItem[] = products
     .slice(0, 10)
-    .map((product, index) => toPriceChartingEvidence(product, input.identity, term, index + 1))
+    .map((product, index) => toPriceChartingEvidence(product, input.identity, term, index + 1, input.condition))
     .filter((source): source is EvidenceItem => source !== null)
     .filter((source) => source.detectedPrice !== undefined);
 
@@ -145,6 +156,7 @@ function toPriceChartingEvidence(
   identity: PricingIdentity,
   query: string,
   rank: number,
+  condition: ConditionGrade | undefined,
 ): EvidenceItem | null {
   const name = product["product-name"];
   if (!name) return null;
@@ -154,9 +166,9 @@ function toPriceChartingEvidence(
   const newer = parsePrice(product["new-price"]);
 
   const conditions = [
-    loose !== undefined && ["loose", loose],
-    cib !== undefined && ["cib", cib],
-    newer !== undefined && ["new", newer],
+    loose !== undefined && condition !== "new" && ["loose", loose],
+    cib !== undefined && condition !== "new" && ["cib", cib],
+    newer !== undefined && condition !== "used" && ["new", newer],
   ].filter(Boolean) as Array<[string, number]>;
 
   if (conditions.length === 0) return null;

@@ -1,4 +1,5 @@
 import type {
+  ConditionGrade,
   EvidenceItem,
   PricingIdentity,
   ProviderOutcome,
@@ -59,6 +60,7 @@ interface ReverbListingsResponse {
 export async function lookupReverbPricing(input: {
   identity: PricingIdentity;
   query: string;
+  condition?: ConditionGrade;
 }): Promise<ProviderOutcome> {
   if (!isMusicGearIdentity(input.identity, input.query)) {
     return {
@@ -107,7 +109,7 @@ export async function lookupReverbPricing(input: {
   }
 
   const payload = (await response.json()) as ReverbListingsResponse;
-  const rawListings = payload.listings ?? [];
+  const rawListings = (payload.listings ?? []).filter((listing) => matchesConditionGrade(listing, input.condition));
   const normalizedSources = rawListings
     .map((listing, index) => toReverbEvidence(listing, input.identity, searchQuery, index + 1))
     .filter((source): source is EvidenceItem => source !== null)
@@ -226,6 +228,24 @@ function toReverbEvidence(
     rank,
     reasons,
   };
+}
+
+// Reverb grades listings as Brand New, B-Stock, Mint ... Poor, Non Functioning.
+// Listings without a grade are kept so sparse results are not emptied out.
+function matchesConditionGrade(listing: ReverbListing, condition: ConditionGrade | undefined): boolean {
+  const grade = listing.condition?.display_name?.trim().toLowerCase();
+  if (!condition || !grade) return true;
+
+  const isNew = grade === "brand new" || grade === "b-stock";
+  const isForParts = grade === "non functioning";
+  switch (condition) {
+    case "new":
+      return isNew;
+    case "for_parts":
+      return isForParts;
+    case "used":
+      return !isNew && !isForParts;
+  }
 }
 
 function parseMoney(money: ReverbMoney | undefined): number | undefined {

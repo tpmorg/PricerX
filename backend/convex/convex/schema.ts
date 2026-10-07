@@ -22,4 +22,14 @@ export default defineSchema({
     createdAt: v.string(),
     expiresAt: v.string(),
   }).index("by_cache_key", ["lookupCacheKey"]),
+
+  // Fixed-window counters that bound fresh (non-cache) pricing lookups until
+  // real accounts and the credit ledger exist.
+  lookupRateLimits: defineTable({
+    bucketKey: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  })
+    .index("by_bucket", ["bucketKey", "windowStart"])
+    .index("by_window_start", ["windowStart"]),
 });
