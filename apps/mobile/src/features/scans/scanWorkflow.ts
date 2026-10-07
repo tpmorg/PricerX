@@ -63,7 +63,6 @@ export async function runScanWorkflow(
     {
       identity,
       query: pricingQuery,
-      condition: recognition.conditionNotes,
     },
     context,
   );

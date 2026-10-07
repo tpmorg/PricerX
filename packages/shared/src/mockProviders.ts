@@ -18,6 +18,10 @@ export const mockRecognitionProvider: RecognitionProvider = {
       category,
       conditionNotes: "Mock result for app scaffolding.",
       confidence: 0.91,
+      alternatives: [
+        { objectName: "Ryobi 7-1/4 inch sliding miter saw", brand: "Ryobi", model: "TSS702", category: "miter saw" },
+        { objectName: "Ryobi 10 inch compound miter saw", brand: "Ryobi", model: "TS1345", category: "miter saw" },
+      ],
       suggestedPricingQuery: buildPricingQuery(identity),
       provider: mockRecognitionProvider.id,
       rawMetadata: {

@@ -57,7 +57,6 @@ export async function runMockScan(input: MockScanInput): Promise<MockScanResult>
     {
       identity,
       query: pricingQuery,
-      condition: recognition.conditionNotes,
     },
     context,
   );

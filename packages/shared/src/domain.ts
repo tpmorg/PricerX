@@ -20,6 +20,8 @@ export type OwnershipStatus =
   | "donated"
   | "discarded";
 
+export type ConditionGrade = "new" | "used" | "for_parts";
+
 export type RecognitionStatus =
   | "pending"
   | "recognized"
@@ -63,6 +65,7 @@ export interface InventoryItem {
   category?: string;
   variant?: string;
   condition?: string;
+  conditionGrade?: ConditionGrade;
   description?: string;
   userNotes?: string;
   ownershipStatus: OwnershipStatus;
@@ -87,6 +90,13 @@ export interface ObjectIdentity {
   variant?: string;
 }
 
+export interface RecognitionCandidate {
+  objectName?: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+}
+
 export interface RecognitionResult {
   objectName?: string;
   brand?: string;
@@ -96,6 +106,7 @@ export interface RecognitionResult {
   conditionNotes?: string;
   confidence: number;
   suggestedPricingQuery?: string;
+  alternatives?: RecognitionCandidate[];
   provider: string;
   rawMetadata?: unknown;
 }

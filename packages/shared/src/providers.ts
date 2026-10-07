@@ -1,4 +1,5 @@
 import type {
+  ConditionGrade,
   ObjectIdentity,
   OcrResult,
   PriceEstimate,
@@ -41,7 +42,8 @@ export interface OcrProvider {
 export interface PricingInput {
   identity: ObjectIdentity;
   query: string;
-  condition?: string;
+  condition?: ConditionGrade;
+  forceRefresh?: boolean;
 }
 
 export interface PricingResult {

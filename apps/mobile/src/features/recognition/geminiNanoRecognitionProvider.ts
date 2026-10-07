@@ -1,4 +1,4 @@
-import type { RecognitionProvider, RecognitionResult } from "@pricernu/shared";
+import type { RecognitionCandidate, RecognitionProvider, RecognitionResult } from "@pricernu/shared";
 import { buildObjectIdentity } from "@pricernu/shared";
 import { geminiNanoModule, type GeminiNanoStatus } from "@/features/recognition/geminiNanoModule";
 
@@ -11,7 +11,17 @@ interface ParsedIdentity {
   conditionNotes?: string;
   confidence?: number;
   suggestedPricingQuery?: string;
+  alternatives?: ParsedCandidate[];
 }
+
+interface ParsedCandidate {
+  objectName?: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+}
+
+const MAX_ALTERNATIVES = 2;
 
 export const geminiNanoRecognitionProvider: RecognitionProvider = {
   id: "gemini-nano-aicore",
@@ -50,6 +60,7 @@ export const geminiNanoRecognitionProvider: RecognitionProvider = {
       identity.displayName,
       description,
     );
+    const alternatives = sanitizeAlternatives(parsed.alternatives, identity.displayName);
 
     logRecognitionDebug({
       requestId: context.requestId,
@@ -79,6 +90,7 @@ export const geminiNanoRecognitionProvider: RecognitionProvider = {
       ...(variant ? { variant } : {}),
       ...(parsed.conditionNotes ? { conditionNotes: parsed.conditionNotes.trim() } : {}),
       ...(suggestedPricingQuery ? { suggestedPricingQuery } : {}),
+      ...(alternatives.length > 0 ? { alternatives } : {}),
     };
   },
 };
@@ -114,12 +126,13 @@ async function parseIdentityWithGemini(
     const response = await geminiNanoModule.prompt({
       text: [
         "Identify the main sellable item from this product photo description.",
-        "Return only compact JSON with keys: objectName, brand, model, category, variant, conditionNotes, confidence, suggestedPricingQuery.",
+        "Return only compact JSON with keys: objectName, brand, model, category, variant, conditionNotes, confidence, suggestedPricingQuery, alternatives.",
         "objectName must be a bare product title, ideally brand plus model, maximum 5 words.",
         "brand must be only the manufacturer name. model must be only the model name or number.",
         "Do not describe the scene, background, surface, colors, pose, or where the item is sitting.",
         "Do not return a sentence. Never include verbs or phrases like 'is shown', 'on a desk', 'in a room', 'box for', 'original packaging', or 'appears to be'.",
         "Use null when unknown. Make suggestedPricingQuery a concise marketplace search phrase for used pricing, ideally brand plus model only.",
+        `alternatives is an array of up to ${MAX_ALTERNATIVES} other plausible products this could be, each with keys objectName, brand, model, category. Use [] if there are none.`,
         `Description: ${description}`,
         compactOcrText ? `Visible text/OCR: ${compactOcrText}` : null,
         compactUserHint ? `User hint: ${compactUserHint}` : null,
@@ -155,7 +168,49 @@ function normalizeParsedIdentity(value: unknown): ParsedIdentity {
     conditionNotes: stringField(record.conditionNotes),
     confidence: numberField(record.confidence),
     suggestedPricingQuery: stringField(record.suggestedPricingQuery),
+    alternatives: Array.isArray(record.alternatives)
+      ? record.alternatives.map(normalizeParsedCandidate).filter((candidate): candidate is ParsedCandidate => candidate !== null)
+      : [],
   };
+}
+
+function normalizeParsedCandidate(value: unknown): ParsedCandidate | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+
+  return {
+    objectName: stringField(record.objectName),
+    brand: stringField(record.brand),
+    model: stringField(record.model),
+    category: stringField(record.category),
+  };
+}
+
+function sanitizeAlternatives(candidates: ParsedCandidate[] | undefined, primaryDisplayName: string): RecognitionCandidate[] {
+  const seen = new Set([primaryDisplayName.toLowerCase()]);
+  const alternatives: RecognitionCandidate[] = [];
+
+  for (const candidate of candidates ?? []) {
+    const brand = sanitizeBrand(candidate.brand);
+    const model = sanitizeModel(candidate.model);
+    const category = sanitizeCategory(candidate.category);
+    const objectName = sanitizeObjectName(candidate.objectName);
+    if (!objectName && !model) continue;
+
+    const key = buildObjectIdentity({ objectName, brand, model, category }).displayName.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    alternatives.push({
+      ...(objectName ? { objectName } : {}),
+      ...(brand ? { brand } : {}),
+      ...(model ? { model } : {}),
+      ...(category ? { category } : {}),
+    });
+    if (alternatives.length >= MAX_ALTERNATIVES) break;
+  }
+
+  return alternatives;
 }
 
 function stringField(value: unknown): string | undefined {

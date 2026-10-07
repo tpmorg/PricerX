@@ -1,5 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import type {
+  ConditionGrade,
   InventoryItem,
   ItemPhoto,
   OcrRecord,
@@ -52,6 +53,7 @@ interface InventoryItemRow {
   category: string | null;
   variant: string | null;
   condition: string | null;
+  condition_grade: ConditionGrade | null;
   description: string | null;
   user_notes: string | null;
   ownership_status: OwnershipStatus;
@@ -274,6 +276,7 @@ export class SQLiteInventoryItemRepository implements InventoryItemRepository {
         category,
         variant,
         condition,
+        condition_grade,
         description,
         user_notes,
         ownership_status,
@@ -285,7 +288,7 @@ export class SQLiteInventoryItemRepository implements InventoryItemRepository {
         sync_status,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       toInventoryItemValues(item),
     );
   }
@@ -317,6 +320,7 @@ export class SQLiteInventoryItemRepository implements InventoryItemRepository {
         category = ?,
         variant = ?,
         condition = ?,
+        condition_grade = ?,
         description = ?,
         user_notes = ?,
         ownership_status = ?,
@@ -338,6 +342,7 @@ export class SQLiteInventoryItemRepository implements InventoryItemRepository {
         item.category ?? null,
         item.variant ?? null,
         item.condition ?? null,
+        item.conditionGrade ?? null,
         item.description ?? null,
         item.userNotes ?? null,
         item.ownershipStatus,
@@ -716,6 +721,10 @@ async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS recognition_results_scan_id_idx ON recognition_results(scan_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS ocr_results_scan_id_idx ON ocr_results(scan_id, created_at DESC);
   `);
+
+  await applyMigration(db, 4, "add_inventory_condition_grade", `
+    ALTER TABLE inventory_items ADD COLUMN condition_grade TEXT;
+  `);
 }
 
 async function applyMigration(
@@ -786,6 +795,7 @@ function toInventoryItemValues(item: InventoryItem): BindValue[] {
     item.category ?? null,
     item.variant ?? null,
     item.condition ?? null,
+    item.conditionGrade ?? null,
     item.description ?? null,
     item.userNotes ?? null,
     item.ownershipStatus,
@@ -815,6 +825,7 @@ function toInventoryItem(row: InventoryItemRow): InventoryItem {
     ...(row.category ? { category: row.category } : {}),
     ...(row.variant ? { variant: row.variant } : {}),
     ...(row.condition ? { condition: row.condition } : {}),
+    ...(row.condition_grade ? { conditionGrade: row.condition_grade } : {}),
     ...(row.description ? { description: row.description } : {}),
     ...(row.user_notes ? { userNotes: row.user_notes } : {}),
     ...(row.location ? { location: row.location } : {}),

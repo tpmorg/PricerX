@@ -1,17 +1,24 @@
-import type { PriceEstimate } from "@pricernu/shared";
+import type { ConditionGrade, PriceEstimate } from "@pricernu/shared";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/theme";
-import { getPricingProviderStatus } from "@/features/pricing/localPricingService";
+import { ConditionPicker } from "@/features/scans/components/ConditionPicker";
+import { IdentityPicker } from "@/features/scans/components/IdentityPicker";
 import {
   deleteScan,
   getStoredScanDetail,
+  peekStagedScan,
   refreshStoredScanPricing,
+  reviseScanIdentity,
   saveStoredScan,
+  setScanCondition,
+  subscribeToStagedScan,
+  type IdentityRevision,
+  type ScanProgress,
+  type StageStatus,
   type StoredScanDetail,
-  updateStoredScanTitle,
 } from "@/features/scans/localScanService";
 
 export default function ScanDetailScreen() {
@@ -20,16 +27,20 @@ export default function ScanDetailScreen() {
   const [detail, setDetail] = useState<StoredScanDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isRefreshingPrice, setIsRefreshingPrice] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [titleDraft, setTitleDraft] = useState("");
-  const pricingProvider = getPricingProviderStatus();
 
   const loadScan = useCallback(async () => {
     if (!id) return;
     setError(null);
+
+    const staged = peekStagedScan(id);
+    if (staged) {
+      setDetail(staged);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       setDetail(await getStoredScanDetail(id));
@@ -46,33 +57,41 @@ export default function ScanDetailScreen() {
     }, [loadScan]),
   );
 
+  // Staged scans fill in recognition and pricing in the background.
   useEffect(() => {
-    setTitleDraft(detail?.inventoryItem?.displayName ?? "");
-  }, [detail?.inventoryItem?.displayName]);
+    if (!id) return;
+    return subscribeToStagedScan(id, setDetail);
+  }, [id]);
 
-  async function syncTitleIfNeeded(): Promise<StoredScanDetail | null> {
-    if (!id || !detail?.inventoryItem) return detail;
+  // Saved scans re-price in the foreground; staged scans return immediately.
+  async function runUpdate(operation: () => Promise<StoredScanDetail | null>, fallbackMessage: string) {
+    setIsUpdating(true);
+    setError(null);
 
-    const trimmedTitle = titleDraft.trim();
-    const currentTitle = detail.inventoryItem.displayName;
-    if (!trimmedTitle) {
-      setTitleDraft(currentTitle);
-      return detail;
-    }
-    if (trimmedTitle === currentTitle) {
-      return detail;
-    }
-
-    setIsUpdatingTitle(true);
     try {
-      const nextDetail = await updateStoredScanTitle(id, trimmedTitle);
-      if (nextDetail) {
-        setDetail(nextDetail);
-      }
-      return nextDetail;
+      const nextDetail = await operation();
+      // Staged updates already arrived through the subscription.
+      if (nextDetail?.isSaved) setDetail(nextDetail);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : fallbackMessage);
     } finally {
-      setIsUpdatingTitle(false);
+      setIsUpdating(false);
     }
+  }
+
+  function handleRevise(revision: IdentityRevision) {
+    if (!id) return;
+    void runUpdate(() => reviseScanIdentity(id, revision), "Could not update the item.");
+  }
+
+  function handleConditionChange(conditionGrade: ConditionGrade | null) {
+    if (!id) return;
+    void runUpdate(() => setScanCondition(id, conditionGrade), "Could not update condition.");
+  }
+
+  function handleRefreshPricing() {
+    if (!id) return;
+    void runUpdate(() => refreshStoredScanPricing(id), "Could not refresh pricing.");
   }
 
   async function handleDelete() {
@@ -89,31 +108,12 @@ export default function ScanDetailScreen() {
     }
   }
 
-  async function handleRefreshPricing() {
-    if (!id) return;
-    setIsRefreshingPrice(true);
-    setError(null);
-
-    try {
-      const nextDetailAfterTitle = await syncTitleIfNeeded();
-      const fallbackQuery = nextDetailAfterTitle?.inventoryItem?.displayName ?? detail?.inventoryItem?.displayName ?? "";
-      const manualQuery = titleDraft.trim() || fallbackQuery.trim();
-      const nextDetail = await refreshStoredScanPricing(id, manualQuery ? { query: manualQuery } : undefined);
-      setDetail(nextDetail);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not refresh pricing.");
-    } finally {
-      setIsRefreshingPrice(false);
-    }
-  }
-
   async function handleSave() {
     if (!id) return;
     setIsSaving(true);
     setError(null);
 
     try {
-      await syncTitleIfNeeded();
       const nextDetail = await saveStoredScan(id);
       setDetail(nextDetail);
     } catch (caught) {
@@ -124,29 +124,13 @@ export default function ScanDetailScreen() {
   }
 
   const scan = detail?.scan;
-  const item = detail?.inventoryItem;
+  const item = detail?.inventoryItem ?? null;
   const estimate = detail?.latestPriceEstimate;
-  const currentTitle = item?.displayName ?? "";
-  const trimmedTitleDraft = titleDraft.trim();
-  const hasPendingTitleChange = Boolean(item && trimmedTitleDraft && trimmedTitleDraft !== currentTitle);
-  const isTitleActionDisabled = isUpdatingTitle || isRefreshingPrice || isSaving || !hasPendingTitleChange;
-
-  async function handleApplyTitleAndRefreshPricing() {
-    if (!id || !item || !trimmedTitleDraft) return;
-    setError(null);
-    setIsRefreshingPrice(true);
-
-    try {
-      const nextDetailAfterTitle = await syncTitleIfNeeded();
-      const manualQuery = trimmedTitleDraft || nextDetailAfterTitle?.inventoryItem?.displayName || currentTitle;
-      const nextDetail = await refreshStoredScanPricing(id, manualQuery ? { query: manualQuery } : undefined);
-      setDetail(nextDetail);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not update title and refresh pricing.");
-    } finally {
-      setIsRefreshingPrice(false);
-    }
-  }
+  const progress = detail?.progress;
+  const isRecognizing = progress?.recognition === "running";
+  const isPricing = progress?.pricing === "running";
+  const isBusy = isUpdating || isSaving || isDeleting;
+  const canSave = Boolean(item) && !isRecognizing && !isBusy;
 
   return (
     <SafeAreaView style={{ backgroundColor: theme.colors.surface, flex: 1 }} edges={["left", "right", "bottom"]}>
@@ -165,14 +149,14 @@ export default function ScanDetailScreen() {
         </Text>
       ) : null}
 
-      {scan ? (
+      {scan && progress ? (
         <>
           <View style={{ gap: 8 }}>
             <Text selectable style={{ fontSize: 28, fontWeight: "800" }}>
-              {item?.displayName ?? scan.ocrText ?? "Local scan"}
+              {item?.displayName ?? (isRecognizing ? "Identifying…" : "Unidentified item")}
             </Text>
             <Text selectable style={{ color: theme.colors.textMuted, fontSize: 16, lineHeight: 22 }}>
-              {estimate ? `${formatRange(estimate)} from ${formatSourceLabel(estimate.sourceType)}` : "Ready to search marketplace evidence."}
+              {formatHeadline(estimate, progress)}
             </Text>
           </View>
 
@@ -197,7 +181,7 @@ export default function ScanDetailScreen() {
             />
           )}
 
-          <FlowCard scan={scan} hasIdentity={Boolean(item)} estimate={estimate} />
+          <FlowCard progress={progress} estimate={estimate} />
 
           {!detail.isSaved ? (
             <View style={{ backgroundColor: theme.colors.infoSoft, borderColor: theme.colors.infoBorder, borderRadius: 8, borderWidth: 1, gap: 8, padding: 14 }}>
@@ -210,78 +194,53 @@ export default function ScanDetailScreen() {
             </View>
           ) : null}
 
+          <IdentityPicker
+            candidates={detail.candidates}
+            item={item}
+            recognitionStatus={progress.recognition}
+            disabled={isBusy}
+            onPick={(candidate) =>
+              handleRevise({
+                displayName: candidate.displayName,
+                ...(candidate.brand ? { brand: candidate.brand } : {}),
+                ...(candidate.model ? { model: candidate.model } : {}),
+                ...(candidate.category ? { category: candidate.category } : {}),
+              })
+            }
+            onSubmit={handleRevise}
+            {...(progress.recognitionError ? { recognitionError: progress.recognitionError } : {})}
+          />
+
           {item ? (
+            <ConditionPicker value={item.conditionGrade} disabled={isBusy} onChange={handleConditionChange} />
+          ) : null}
+
+          {progress.recognition === "done" && scan.recognitionConfidence !== undefined ? (
             <View style={{ backgroundColor: theme.colors.neutralSurface, borderColor: theme.colors.neutralBorder, borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
-              <Text selectable style={{ fontSize: 16, fontWeight: "700" }}>
-                Exact item title
-              </Text>
-              <Text selectable style={{ color: theme.colors.textMuted, lineHeight: 20 }}>
-                If the AI only found something generic, tell us exactly what it is here. We will use this title for marketplace search.
-              </Text>
-              <TextInput
-                autoCapitalize="words"
-                autoCorrect={false}
-                editable={!isSaving && !isRefreshingPrice && !isUpdatingTitle}
-                onChangeText={setTitleDraft}
-                placeholder="Add item title"
-                style={{
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.neutralBorder,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  color: theme.colors.neutralStrong,
-                  fontSize: 16,
-                  paddingHorizontal: 12,
-                  paddingVertical: 12,
-                }}
-                value={titleDraft}
-              />
-              {hasPendingTitleChange ? (
-                <View style={{ alignItems: "center", flexDirection: "row", gap: 10 }}>
-                  <Pressable
-                    disabled={isTitleActionDisabled}
-                    onPress={() => void handleApplyTitleAndRefreshPricing()}
-                    style={({ pressed }) => ({
-                      alignItems: "center",
-                      backgroundColor: isTitleActionDisabled ? theme.colors.disabled : pressed ? theme.colors.primaryStrong : theme.colors.primary,
-                      borderRadius: theme.radii.md,
-                      justifyContent: "center",
-                      minHeight: 44,
-                      paddingHorizontal: 14,
-                      paddingVertical: 10,
-                    })}
-                  >
-                    {isRefreshingPrice ? (
-                      <ActivityIndicator color={theme.colors.textInverse} />
-                    ) : (
-                      <Text style={{ color: theme.colors.textInverse, fontSize: 15, fontWeight: "800" }}>Update Now</Text>
-                    )}
-                  </Pressable>
-                  <Text selectable style={{ color: theme.colors.textSoft, flex: 1, fontSize: 13, lineHeight: 18 }}>
-                    Use this title right away for a fresh marketplace search.
-                  </Text>
-                </View>
-              ) : null}
+              <Field label="Confidence" value={`${Math.round(scan.recognitionConfidence * 100)}%`} />
             </View>
           ) : null}
 
-          <View style={{ backgroundColor: theme.colors.neutralSurface, borderColor: theme.colors.neutralBorder, borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
-            <Field label="Confidence" value={`${Math.round((scan.recognitionConfidence ?? 0) * 100)}%`} />
-          </View>
-
-          <PriceCard estimate={estimate} />
+          {item ? (
+            <PriceCard
+              estimate={estimate}
+              status={isUpdating && detail.isSaved ? "running" : progress.pricing}
+              onRetry={handleRefreshPricing}
+              {...(progress.pricingError ? { errorMessage: progress.pricingError } : {})}
+            />
+          ) : null}
           <EvidenceSection estimate={estimate} />
 
           {!detail.isSaved ? (
             <Pressable
-              disabled={isSaving}
-            onPress={() => void handleSave()}
-            style={({ pressed }) => ({
-              alignItems: "center",
-              backgroundColor: isSaving ? theme.colors.disabled : pressed ? theme.colors.neutralStrong : theme.colors.neutralStrong,
-              borderRadius: 8,
-              padding: 14,
-            })}
+              disabled={!canSave}
+              onPress={() => void handleSave()}
+              style={{
+                alignItems: "center",
+                backgroundColor: canSave ? theme.colors.neutralStrong : theme.colors.disabled,
+                borderRadius: 8,
+                padding: 14,
+              }}
             >
               {isSaving ? (
                 <ActivityIndicator color={theme.colors.textInverse} />
@@ -291,26 +250,22 @@ export default function ScanDetailScreen() {
             </Pressable>
           ) : null}
 
-          <Pressable
-            disabled={isRefreshingPrice || !item}
-            onPress={() => void handleRefreshPricing()}
-            style={({ pressed }) => ({
-              alignItems: "center",
-              backgroundColor: isRefreshingPrice ? theme.colors.disabled : pressed ? theme.colors.neutralStrong : theme.colors.neutralStrong,
-              borderRadius: 8,
-              padding: 14,
-            })}
-          >
-            {isRefreshingPrice ? (
-              <ActivityIndicator color={theme.colors.textInverse} />
-            ) : (
-              <Text style={{ color: theme.colors.textInverse, fontSize: 16, fontWeight: "700" }}>
-                {pricingProvider.mode === "convex_marketplace"
-                  ? "Search Using This Title"
-                  : "Re-run Local Pricing"}
-              </Text>
-            )}
-          </Pressable>
+          {item ? (
+            <Pressable
+              disabled={isBusy || isPricing}
+              onPress={handleRefreshPricing}
+              style={{
+                alignItems: "center",
+                borderColor: theme.colors.neutralStrong,
+                borderRadius: 8,
+                borderWidth: 1,
+                opacity: isBusy || isPricing ? 0.5 : 1,
+                padding: 14,
+              }}
+            >
+              <Text style={{ color: theme.colors.neutralStrong, fontSize: 16, fontWeight: "700" }}>Refresh Prices</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             disabled={isDeleting}
@@ -324,7 +279,7 @@ export default function ScanDetailScreen() {
             })}
           >
             <Text style={{ color: theme.colors.danger, fontSize: 16, fontWeight: "700" }}>
-              {isDeleting ? (detail?.isSaved ? "Deleting..." : "Discarding...") : detail?.isSaved ? "Delete Local Scan" : "Discard Result"}
+              {isDeleting ? (detail.isSaved ? "Deleting..." : "Discarding...") : detail.isSaved ? "Delete Local Scan" : "Discard Result"}
             </Text>
           </Pressable>
         </>
@@ -334,18 +289,25 @@ export default function ScanDetailScreen() {
   );
 }
 
+function formatHeadline(estimate: PriceEstimate | null | undefined, progress: ScanProgress): string {
+  if (progress.pricing === "running") return "Searching marketplaces…";
+  if (estimate) return `${formatRange(estimate)} from ${formatSourceLabel(estimate.sourceType)}`;
+  if (progress.recognition === "running") return "Reading the photo on-device…";
+  if (progress.pricing === "failed") return "Pricing lookup failed.";
+  return "Ready to search marketplace evidence.";
+}
+
 function FlowCard(input: {
-  scan: NonNullable<StoredScanDetail["scan"]>;
-  hasIdentity: boolean;
+  progress: ScanProgress;
   estimate: PriceEstimate | null | undefined;
 }) {
   const theme = useTheme();
   const evidence = parsePricingEvidence(input.estimate);
   const providerMixLabel = formatProviderMixLabel(input.estimate, evidence);
-  const steps = [
-    { title: "Capture", state: "done" as const },
-    { title: "Analyze", state: input.hasIdentity ? ("done" as const) : ("pending" as const) },
-    { title: "Search", state: input.estimate ? ("done" as const) : ("pending" as const) },
+  const steps: Array<{ title: string; state: StageStatus }> = [
+    { title: "Capture", state: "done" },
+    { title: "Identify", state: input.progress.recognition },
+    { title: "Price", state: input.progress.pricing },
   ];
 
   return (
@@ -361,23 +323,30 @@ function FlowCard(input: {
         ))}
       </View>
       <Text selectable style={{ color: theme.colors.textSoft, fontSize: 12, lineHeight: 17 }}>
-        {input.estimate
-          ? `Marketplace results are in from ${providerMixLabel}.`
-          : input.hasIdentity
-            ? "Ready to search with the current item title."
-            : "Waiting on a stronger item identity before search."}
+        {formatFlowCaption(input.progress, input.estimate ? providerMixLabel : null)}
       </Text>
     </View>
   );
 }
 
+function formatFlowCaption(progress: ScanProgress, providerMixLabel: string | null): string {
+  if (progress.recognition === "running") return "Identifying the item. Prices load as soon as we know what it is.";
+  if (progress.pricing === "running") return "Checking cached prices first, then marketplaces.";
+  if (progress.pricing === "failed") return "Pricing failed. Adjust the item or condition, or retry.";
+  if (providerMixLabel) return `Marketplace results are in from ${providerMixLabel}.`;
+  if (progress.recognition === "failed") return "Tell us what the item is to search for prices.";
+  return "Ready to search with the current item details.";
+}
+
 function FlowStep(input: {
   title: string;
-  state: "done" | "pending";
+  state: StageStatus;
   showConnector: boolean;
 }) {
   const theme = useTheme();
   const isDone = input.state === "done";
+  const isFailed = input.state === "failed";
+  const isRunning = input.state === "running";
 
   return (
     <View style={{ flex: 1 }}>
@@ -386,16 +355,20 @@ function FlowStep(input: {
           <View
             style={{
               alignItems: "center",
-              backgroundColor: isDone ? theme.colors.primary : theme.colors.neutralSurfaceStrong,
+              backgroundColor: isDone ? theme.colors.primary : isFailed ? theme.colors.danger : theme.colors.neutralSurfaceStrong,
               borderRadius: 999,
               height: 24,
               justifyContent: "center",
               width: 24,
             }}
           >
-            <Text style={{ color: isDone ? theme.colors.textInverse : theme.colors.textSoft, fontSize: 11, fontWeight: "900" }}>
-              {isDone ? "✓" : ""}
-            </Text>
+            {isRunning ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : (
+              <Text style={{ color: isDone || isFailed ? theme.colors.textInverse : theme.colors.textSoft, fontSize: 11, fontWeight: "900" }}>
+                {isDone ? "✓" : isFailed ? "!" : ""}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -442,8 +415,59 @@ function FlowStep(input: {
   );
 }
 
-function PriceCard({ estimate }: { estimate: PriceEstimate | null | undefined }) {
+function PriceCard(input: {
+  estimate: PriceEstimate | null | undefined;
+  status: StageStatus;
+  errorMessage?: string;
+  onRetry: () => void;
+}) {
   const theme = useTheme();
+  const { estimate } = input;
+
+  if (input.status === "running") {
+    return (
+      <View style={{ alignItems: "center", backgroundColor: theme.colors.neutralStrong, borderRadius: 8, flexDirection: "row", gap: 12, padding: 16 }}>
+        <ActivityIndicator color={theme.colors.textInverse} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text selectable style={{ color: theme.colors.textInverse, fontSize: 16, fontWeight: "800" }}>
+            Searching marketplaces…
+          </Text>
+          <Text selectable style={{ color: theme.colors.neutralBorder, lineHeight: 19 }}>
+            Cached prices come back instantly; fresh lookups take a few seconds.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (input.status === "failed") {
+    return (
+      <View style={{ borderColor: theme.colors.danger, borderRadius: 8, borderWidth: 1, gap: 10, padding: 14 }}>
+        <Text selectable style={{ color: theme.colors.danger, fontSize: 16, fontWeight: "800" }}>
+          Couldn't get prices
+        </Text>
+        <Text selectable style={{ color: theme.colors.textMuted, lineHeight: 20 }}>
+          {input.errorMessage ?? "The pricing lookup failed."}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={input.onRetry}
+          style={({ pressed }) => ({
+            alignItems: "center",
+            alignSelf: "flex-start",
+            backgroundColor: pressed ? theme.colors.dangerStrong : theme.colors.danger,
+            borderRadius: theme.radii.md,
+            minHeight: 40,
+            justifyContent: "center",
+            paddingHorizontal: 16,
+          })}
+        >
+          <Text style={{ color: theme.colors.textInverse, fontSize: 14, fontWeight: "800" }}>Retry</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   if (!estimate) {
     return (
       <View style={{ borderColor: theme.colors.neutralBorder, borderRadius: 8, borderWidth: 1, gap: 6, padding: 14 }}>

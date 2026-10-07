@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import type { PricingEvidenceItem, PricingProvider, PricingResult } from "@pricernu/shared";
+import { getInstallId } from "@/features/device/installId";
 
 const LOOKUP_PRICING_ACTION = "pricing:lookupPricing" as unknown as FunctionReference<"action">;
 
@@ -60,7 +61,9 @@ export const convexMarketplacePricingProvider: PricingProvider = {
     const response = (await client.action(LOOKUP_PRICING_ACTION, {
       identity: input.identity,
       query: input.query,
+      deviceId: getInstallId(),
       ...(input.condition ? { condition: input.condition } : {}),
+      ...(input.forceRefresh ? { forceRefresh: true } : {}),
     })) as ConvexPricingResponse;
 
     if (!response.ok) {

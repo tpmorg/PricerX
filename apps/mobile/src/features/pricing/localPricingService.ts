@@ -34,7 +34,8 @@ export async function lookupPriceForInventoryItem(
   const persistResult = input.persistResult !== false;
   const identity = input.identity ?? buildIdentityFromInventoryItem(input.inventoryItem);
   const query = input.query?.trim() || buildPricingQuery(identity);
-  const lookupCacheKey = buildCacheKey(identity);
+  const condition = input.inventoryItem.conditionGrade;
+  const lookupCacheKey = buildCacheKey(identity, condition);
 
   if (!input.forceRefresh) {
     const cached = await localRepositories.priceEstimates.findFreshByCacheKey(lookupCacheKey, nowIso);
@@ -58,7 +59,12 @@ export async function lookupPriceForInventoryItem(
 
   const provider = getPricingProvider({ allowMockFallback: input.allowMockFallback === true });
   const providerResult = await provider.lookup(
-    { identity, query, condition: input.inventoryItem.condition },
+    {
+      identity,
+      query,
+      ...(condition ? { condition } : {}),
+      ...(input.forceRefresh ? { forceRefresh: true } : {}),
+    },
     { requestId: createLocalId("pricing-request"), now },
   );
   const estimate = estimateFromProviderResult({
