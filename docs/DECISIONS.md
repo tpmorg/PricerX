@@ -60,6 +60,14 @@ Decision: Implement recognition, OCR, and pricing behind provider interfaces.
 
 Rationale: Gemini Nano and other local AI availability may vary. The app should not be hard-coded to one model or provider.
 
+### D-0008: Expo SDK 57 baseline
+
+Status: accepted
+
+Decision: Use Expo SDK 57 with React Native 0.86 as the mobile runtime baseline.
+
+Rationale: SDK 57 is the supported, low-friction successor to SDK 56, is supported by the current Expo Go release, and includes React Native 0.86 fixes. Development builds remain required for the custom Gemini Nano native module.
+
 ## Pending Decisions
 
 ### P-0001: Photo sync strategy

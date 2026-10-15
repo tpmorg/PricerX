@@ -6,6 +6,8 @@
 Interactive scan results (tasks 0010, 0011) ahead of cloud vision fallback and the credit ledger.
 
 ## Recent Accomplishments
+- Submitted the Expo SDK 57 Android development-client build to EAS as build `e68497f0-ab3d-4e07-9720-d7c769540962` (`versionCode` 8); EAS accepted the upload and build completion has not been polled.
+- Upgraded the mobile workspace to Expo SDK 57.0.27 and React Native 0.86.3, aligned all Expo native modules, regenerated a single clean npm workspace dependency tree, and passed Expo Doctor, Expo dependency validation, and full workspace typecheck.
 - Task 0010: `lookupPricing` now requires a per-install device id and enforces per-device and global daily limits on fresh lookups; snapshot cache functions are internal-only; `forceRefresh` bypasses the server cache.
 - Task 0010: saved photos are copied into the document directory instead of pointing at OS cache files.
 - Task 0011: the result screen opens immediately and fills in identity, then price, as each stage finishes.
@@ -33,6 +35,7 @@ Interactive scan results (tasks 0010, 0011) ahead of cloud vision fallback and t
 Establish a coherent product brand layer before introducing a larger styling framework.
 
 ## Next Steps
+- When EAS build `e68497f0-ab3d-4e07-9720-d7c769540962` completes, install it on Android and verify `expo-gemini-nano`, camera, image picker, SQLite persistence, and Expo Router navigation on device; the previous SDK 56 development client is no longer valid for native-module testing.
 - Run `npx convex dev` to push the new schema, `rateLimits` module, and cron, and to regenerate `_generated/api.d.ts` (it was edited by hand).
 - On device: verify the staged flow (identify → price), candidate switching, condition chips, recognition-failure manual path, and that saved photos survive a cache clear.
 - Comparable listings: Same item / Not this, recomputing the range from confirmed matches.
@@ -51,6 +54,7 @@ Establish a coherent product brand layer before introducing a larger styling fra
 - Consider removing or de-prioritizing PriceCharting if coverage is consistently irrelevant for this app's product mix.
 
 ## Known Issues / Blockers
+- SDK 57 passes static compatibility checks, but the custom `expo-gemini-nano` Android module has not yet been proven in a fresh SDK 57 development build.
 - `expo-gemini-nano` is Android-only today, so no iOS recognition path exists yet.
 - Staged results are in-memory only and will be lost if the app fully restarts before Save.
 - Items saved before task 0010 still reference OS cache photo paths.
