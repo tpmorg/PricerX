@@ -3,15 +3,23 @@
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
+    "types": [
+      "jest",
+      "node"
+    ],
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@firebase/auth": [
+        "../../node_modules/@firebase/auth/dist/index.rn.d.ts"
       ]
     },
     "strict": true
   },
   "include": [
     "app",
-    "src"
+    "src",
+    "app.config.ts"
   ]
 }

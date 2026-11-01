@@ -1,11 +1,16 @@
 # Current State
 
-*Last updated: 2026-10-07*
+*Last updated: 2026-10-31*
 
 ## Active Focus
-Interactive scan results (tasks 0010, 0011) ahead of cloud vision fallback and the credit ledger.
+Reusable mobile infrastructure integration (task 0013) while preserving the local-first scan flow.
 
 ## Recent Accomplishments
+- Submitted the framework-integrated Android development client to EAS as build `9cca9a2d-3a95-4b34-8742-829374950f1b` (`versionCode` 9); EAS accepted the upload and completion has not been polled.
+- Applied `tpmorg/react-expo-starter` as a product-neutral framework layer: lifecycle providers, configuration/error/database/network/auth gates, API and durable-operation primitives, account/billing/sync/media/notification adapters, typed theme utilities, test helpers, and framework documentation now live under the mobile workspace.
+- Mounted the framework around Expo Router without replacing Pricernu's routes or theme, and added a product-storage gate so existing `pricernu.db` migrations finish before screens mount. Framework infrastructure uses `pricernu-framework.db` to avoid colliding with the product database's numeric migration ledger.
+- Pinned the custom `expo-gemini-nano` wildcard native peer through npm overrides so it resolves Expo Modules Core 57.0.24 instead of pulling SDK 58 native code.
+- Framework validation passes: workspace typecheck, 22 Jest suites / 45 tests, storage regression, Expo dependency alignment, and diff check. Expo Doctor passes 20/21; the only remaining finding is local Xcode 16 versus SDK 57's Xcode 26.4 minimum.
 - Submitted the Expo SDK 57 Android development-client build to EAS as build `e68497f0-ab3d-4e07-9720-d7c769540962` (`versionCode` 8); EAS accepted the upload and build completion has not been polled.
 - Upgraded the mobile workspace to Expo SDK 57.0.27 and React Native 0.86.3, aligned all Expo native modules, regenerated a single clean npm workspace dependency tree, and passed Expo Doctor, Expo dependency validation, and full workspace typecheck.
 - Task 0010: `lookupPricing` now requires a per-install device id and enforces per-device and global daily limits on fresh lookups; snapshot cache functions are internal-only; `forceRefresh` bypasses the server cache.
@@ -32,10 +37,13 @@ Interactive scan results (tasks 0010, 0011) ahead of cloud vision fallback and t
 - Added a true app theme layer with `ThemeProvider` and `useTheme()`, then migrated the shared shell plus major mobile screens away from scattered raw color values onto semantic theme roles.
 
 ## Current Task
-Establish a coherent product brand layer before introducing a larger styling framework.
+Verify the imported framework in a fresh native development build, then connect only the adapters Pricernu actually needs.
 
 ## Next Steps
-- When EAS build `e68497f0-ab3d-4e07-9720-d7c769540962` completes, install it on Android and verify `expo-gemini-nano`, camera, image picker, SQLite persistence, and Expo Router navigation on device; the previous SDK 56 development client is no longer valid for native-module testing.
+- When EAS build `9cca9a2d-3a95-4b34-8742-829374950f1b` completes, install it and verify framework startup, both SQLite databases, network state, existing camera/library/Gemini Nano flow, and local reset behavior on Android.
+- Decide whether the first live framework adapter should be Clerk auth, Sentry reporting, RevenueCat billing, or a Convex-backed sync transport. Firebase adapters are imported but intentionally not selected.
+- Upgrade local Xcode from 16.0 to 26.4 or newer before attempting local iOS compilation; EAS cloud builds remain available meanwhile.
+- Treat EAS build `e68497f0-ab3d-4e07-9720-d7c769540962` as a historical SDK 57 pre-framework artifact; it cannot validate the newly added native framework dependencies.
 - Run `npx convex dev` to push the new schema, `rateLimits` module, and cron, and to regenerate `_generated/api.d.ts` (it was edited by hand).
 - On device: verify the staged flow (identify → price), candidate switching, condition chips, recognition-failure manual path, and that saved photos survive a cache clear.
 - Comparable listings: Same item / Not this, recomputing the range from confirmed matches.
@@ -54,6 +62,8 @@ Establish a coherent product brand layer before introducing a larger styling fra
 - Consider removing or de-prioritizing PriceCharting if coverage is consistently irrelevant for this app's product mix.
 
 ## Known Issues / Blockers
+- The imported framework passes static and Node SQLite checks but has not yet run on a device in Pricernu. Its optional Firebase, RevenueCat, Sentry, notifications, remote jobs, and sync adapters are disabled and unverified.
+- Local Xcode 16.0 is below Expo SDK 57's required Xcode 26.4 minimum, so local iOS builds are blocked until Xcode is upgraded.
 - SDK 57 passes static compatibility checks, but the custom `expo-gemini-nano` Android module has not yet been proven in a fresh SDK 57 development build.
 - `expo-gemini-nano` is Android-only today, so no iOS recognition path exists yet.
 - Staged results are in-memory only and will be lost if the app fully restarts before Save.

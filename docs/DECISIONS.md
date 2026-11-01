@@ -68,6 +68,14 @@ Decision: Use Expo SDK 57 with React Native 0.86 as the mobile runtime baseline.
 
 Rationale: SDK 57 is the supported, low-friction successor to SDK 56, is supported by the current Expo Go release, and includes React Native 0.86 fixes. Development builds remain required for the custom Gemini Nano native module.
 
+### D-0009: Product-neutral infrastructure framework
+
+Status: accepted
+
+Decision: Adopt `tpmorg/react-expo-starter` under `apps/mobile/src/framework` while keeping product routes, domain models, feature storage, and visual identity outside the framework layer.
+
+Rationale: Shared lifecycle, error, configuration, network, account, billing, persistence, sync, and test infrastructure should be reusable without forcing a product shell or replacing Pricernu's local-first scan architecture. Optional adapters remain disabled until the product configures and verifies them.
+
 ## Pending Decisions
 
 ### P-0001: Photo sync strategy
