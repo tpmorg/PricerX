@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { PricernuFramework } from "@/app/PricernuFramework";
+import { PricernuFramework } from "@/framework/PricernuFramework";
 import { ThemeProvider, lightTheme } from "@/theme";
 
 export default function RootLayout() {

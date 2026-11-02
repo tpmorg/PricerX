@@ -34,5 +34,9 @@ Static and Node-based checks do not prove Expo SQLite, native adapters, or Gemin
 
 ## Build Handoff
 
-- Android development build `9cca9a2d-3a95-4b34-8742-829374950f1b` was accepted by EAS with `versionCode` 9.
-- Build completion and on-device validation are pending.
+- Android development build `9cca9a2d-3a95-4b34-8742-829374950f1b` (`versionCode` 9) failed while compiling `expo-gemini-nano` because its ML Kit `FeatureStatus` import used the obsolete package namespace.
+- The root postinstall applies the corrected `com.google.mlkit.genai.common.FeatureStatus` import after dependency installation.
+- Replacement Android development build `a0a93012-aa44-4d48-b817-8478550d73d0` (`versionCode` 10) was accepted by EAS; completion and on-device validation are pending.
+- A newer Android internal development build, `41c4a88e-1b78-400d-a8c7-a645a615a037` (`versionCode` 11), was accepted by EAS on 2026-11-01; completion and on-device validation are pending.
+- Android preview build `43422f03-eae9-41d8-975f-acd3b3f93f04` (`versionCode` 12) was then accepted as the requested internal-distribution APK without a development client. The EAS `preview` environment did not inject `EXPO_PUBLIC_CONVEX_URL`.
+- Runtime validation exposed that `PricernuFramework.tsx` lived under reserved route directory `src/app`, so Expo Router registered it as a screen without a default export. It now lives under `src/framework`; a replacement internal build is required because versionCode 12 embeds the old route graph.

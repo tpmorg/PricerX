@@ -9,6 +9,10 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "node scripts/patch-expo-gemini-nano.cjs",
+    "start": "npm run start --workspace @pricernu/mobile",
+    "start:dev": "npm run start:dev --workspace @pricernu/mobile",
+    "start:go": "npm run start:go --workspace @pricernu/mobile",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

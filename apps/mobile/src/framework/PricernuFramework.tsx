@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import { AppServicesProvider, type FrameworkOptions } from "@/framework/appServices";
-import { FrameworkProviders } from "@/framework/FrameworkProviders";
-import type { ConfigIssue } from "@/framework/config/runtimeConfig";
 import { initializeLocalStorage } from "@/features/scans/localScanService";
 import { useTheme } from "@/theme";
+import { AppServicesProvider, type FrameworkOptions } from "./appServices";
+import { FrameworkProviders } from "./FrameworkProviders";
+import type { ConfigIssue } from "./config/runtimeConfig";
 
 const frameworkOptions: FrameworkOptions = {
   databaseName: "pricernu-framework.db",
